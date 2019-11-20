@@ -1,0 +1,22 @@
+{
+    "name": "gelf-client",
+    "version": "0.0.1",
+    "description": "GELF Client for Node.js written in TypeScript.",
+    "main": "dist/index.js",
+    "repository": "https://github.com/izatop/gelf-client",
+    "author": "izatop@gmail.com",
+    "license": "MIT",
+    "scripts": {
+        "clean": "rimraf",
+        "lint": "tslint 'packages/*/src/**/*.ts'",
+        "build": "yarn clean && tsc",
+        "build:watch": "tsc -w"
+    },
+    "devDependencies": {
+        "tslint": "^5.20.1",
+        "typescript": "3.7.2"
+    },
+    "dependencies": {
+        "@types/node": "^12.12.11"
+    }
+}

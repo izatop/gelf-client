@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "esnext",
+        "outDir": "dist",
+        "rootDir": "src",
+        "declaration": true,
+        "sourceMap": true,
+        "strict": true,
+        "strictNullChecks": true,
+        "forceConsistentCasingInFileNames": true,
+        "noImplicitThis": true,
+        "noImplicitAny": true,
+        "strictPropertyInitialization": true,
+        "strictFunctionTypes": true,
+        "skipLibCheck": true,
+        "incremental": true
+    },
+    "exclude": ["node_modules"],
+    "include": ["src"]
+}
