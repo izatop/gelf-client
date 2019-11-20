@@ -3,13 +3,7 @@ import {promisify} from "util";
 import {deflate, ZlibOptions} from "zlib";
 import {IPacketOptions} from "./Interface";
 
-interface ICompress {
-    (data: Buffer): Promise<Buffer>;
-
-    (data: Buffer, options: ZlibOptions): Promise<Buffer>;
-}
-
-const compress: ICompress = promisify(deflate);
+const compress: (data: Buffer, options?: ZlibOptions) => Promise<Buffer> = promisify(deflate);
 
 // @see https://docs.graylog.org/en/3.1/pages/gelf.html#chunking
 const GELF_MAGIC_NO = [0x1e, 0x0f];

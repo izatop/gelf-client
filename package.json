@@ -7,8 +7,8 @@
     "author": "izatop@gmail.com",
     "license": "MIT",
     "scripts": {
-        "clean": "rimraf",
-        "lint": "tslint 'packages/*/src/**/*.ts'",
+        "clean": "rimraf dist",
+        "lint": "tslint 'src/**/*.ts'",
         "build": "yarn clean && tsc",
         "build:watch": "tsc -w"
     },

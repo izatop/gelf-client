@@ -13,7 +13,7 @@ import GELFClient, {Level} from "gelf-client";
 const client = GELFClient.factory("udp://localhost:12201/?compress", {app: "app"})
     .clone({pid: process.pid});
 
-client.push({
+client.send({
     level: Level.ERROR,
     message: "Short message",
     description: "Stack trace or something else",

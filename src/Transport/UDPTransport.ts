@@ -1,10 +1,10 @@
-import {Socket} from "dgram";
 import * as dgram from "dgram";
 import {Url} from "url";
 import {TransportAbstract} from "../TransportAbstract";
 
 export class UDPTransport extends TransportAbstract {
-    protected socket: Socket;
+    protected socket: dgram.Socket;
+
     constructor(info: Url) {
         super(info);
         this.socket = dgram.createSocket("udp4");

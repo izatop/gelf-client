@@ -49,6 +49,4 @@ export abstract class TransportAbstract extends EventEmitter {
     protected abstract destroy(): void;
 }
 
-export interface ITransportCtor<T extends TransportAbstract = TransportAbstract> {
-    new(info: Url): T;
-}
+export type TransportCtor<T extends TransportAbstract = TransportAbstract> = new(info: Url) => T;

@@ -1,9 +1,9 @@
 import * as assert from "assert";
-import {ITransportCtor} from "../TransportAbstract";
+import {TransportCtor} from "../TransportAbstract";
 import {TCPTransport} from "./TCPTransport";
 import {UDPTransport} from "./UDPTransport";
 
-const transports = new Map([
+const transports = new Map<string, TransportCtor>([
     ["tcp", TCPTransport],
     ["udp", UDPTransport],
 ]);
@@ -13,7 +13,7 @@ const transports = new Map([
  *
  * @param proto
  */
-export function getTransport(proto?: string | null): ITransportCtor {
+export function getTransport(proto?: string | null): TransportCtor {
     assert(proto && transports.has(proto), `Transport for protocol ${proto} doesn't exists`);
     return transports.get(proto!)!;
 }

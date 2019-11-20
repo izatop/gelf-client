@@ -35,7 +35,7 @@ export class Client {
         const timestamp = Math.round(Date.now() / 1000);
         const envelope: IEnvelope = {
             host: app,
-            level: level || Level.Informational,
+            level: level || Level.INFO,
             version: this.version,
             short_message: message,
             full_message: description,
@@ -58,7 +58,7 @@ export class Client {
     private strictChecks(keys: string[]) {
         const regex = /^([a-zA-Z0-9_])+$/;
         if (keys.some((key) => !regex.test(key))) {
-            new Error(`Custom fields strict checks failed: ${keys.join(", ")}`);
+            throw new Error(`Custom fields strict checks failed: ${keys.join(", ")}`);
         }
     }
 }
