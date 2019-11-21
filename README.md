@@ -1,7 +1,7 @@
 # GELF Client
 
 GELF Client for Node.js written in TypeScript.
-This client supports TCP and UDP transports.
+The Client supports TCP and UDP transports.
 
 ## Install
 
@@ -42,8 +42,11 @@ This code will send these json:
 }
 ``` 
 
+### Client API
 
-### Connection string
+See type definitions.
+
+## Connection string
 
 Connection string (DSN) format `proto://hostOrIp[:port]/[?[flag[&option=value[&option2=value2]]]}`
 
@@ -52,3 +55,4 @@ Options:
  * `compress` - use `zlib` compression as flag
  * `maxChunkSize` - maximum size of a message chunk, default 1440
  * `minCompressSize` - minimal size of a message to compress, default 1440
+ * `strict` - custom fields strict checks
