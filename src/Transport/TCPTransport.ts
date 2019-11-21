@@ -1,12 +1,13 @@
 import * as net from "net";
 import {Url} from "url";
+import {ConnectionOptions} from "../Interface";
 import {TransportAbstract} from "../TransportAbstract";
 
 export class TCPTransport extends TransportAbstract {
     protected socket: net.Socket;
-    constructor(info: Url) {
-        super(info);
-        this.socket = net.connect({host: this.hostname, port: this.port});
+    constructor(options: ConnectionOptions) {
+        super(options);
+        this.socket = net.connect({host: this.options.host, port: this.options.port});
         this.socket.on("error", (error) => this.emit("error", error));
         this.socket.unref();
     }

@@ -3,17 +3,26 @@
     "version": "0.0.1",
     "description": "GELF Client for Node.js written in TypeScript.",
     "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "typings": "dist/index.d.ts",
     "repository": "https://github.com/izatop/gelf-client",
     "author": "izatop@gmail.com",
     "license": "MIT",
+    "files": ["dist"],
     "scripts": {
         "clean": "rimraf dist",
         "lint": "tslint 'src/**/*.ts'",
         "build": "yarn clean && tsc",
-        "build:watch": "tsc -w"
+        "build:watch": "tsc -w",
+        "test:watch": "jest --watch",
+        "test": "jest"
     },
     "devDependencies": {
+        "@types/jest": "^24.0.23",
         "husky": "^3.1.0",
+        "jest": "^24.9.0",
+        "ts-jest": "^24.1.0",
+        "ts-node": "^8.5.2",
         "tslint": "^5.20.1",
         "typescript": "3.7.2"
     },

@@ -1,12 +1,15 @@
 # GELF Client
 
 GELF Client for Node.js written in TypeScript.
+This client supports TCP and UDP transports.
 
 ## Install
 
 `yarn add gelf-client`
 
 ## Usage
+
+Simple usage with UDP transport:
 
 ```typescript
 import GELFClient, {Level} from "gelf-client";
@@ -17,6 +20,7 @@ client.send({
     level: Level.ERROR,
     message: "Short message",
     description: "Stack trace or something else",
+    // custom fields
     request_id: uuid(),
     user_id: 1,
 });
@@ -37,3 +41,14 @@ This code will send these json:
     "_pid": 123,
 }
 ``` 
+
+
+### Connection string
+
+Connection string (DSN) format `proto://hostOrIp[:port]/[?[flag[&option=value[&option2=value2]]]}`
+
+Options:
+
+ * `compress` - use `zlib` compression as flag
+ * `maxChunkSize` - maximum size of a message chunk, default 1440
+ * `minCompressSize` - minimal size of a message to compress, default 1440

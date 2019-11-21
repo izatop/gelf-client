@@ -1,28 +1,20 @@
 import {randomBytes} from "crypto";
-import {promisify} from "util";
-import {deflate, ZlibOptions} from "zlib";
-import {IPacketOptions} from "./Interface";
-
-const compress: (data: Buffer, options?: ZlibOptions) => Promise<Buffer> = promisify(deflate);
-
-// @see https://docs.graylog.org/en/3.1/pages/gelf.html#chunking
-const GELF_MAGIC_NO = [0x1e, 0x0f];
+import {compress, GELF_MAGIC_NO} from "./config";
+import {ConnectionOptions} from "./Interface";
 
 export class Serializer {
-    public readonly compress: boolean;
-    public readonly maxChunkSize: number;
+    public readonly options: ConnectionOptions;
 
-    constructor(options: IPacketOptions) {
-        this.compress = options.compress;
-        this.maxChunkSize = options.maxChunkSize;
+    constructor(options: ConnectionOptions) {
+        this.options = options;
     }
 
     public async serialize(data: Buffer) {
-        if (data.length <= this.maxChunkSize) {
+        if (data.length <= this.options.maxChunkSize) {
             return [data];
         }
 
-        if (!this.compress) {
+        if (!this.options.compress && data.length >= this.options.minCompressSize) {
             return this.createChunks(data);
         }
 
@@ -30,7 +22,7 @@ export class Serializer {
     }
 
     protected createChunks(data: Buffer) {
-        const bufferSize = this.maxChunkSize - 12;
+        const bufferSize = this.options.maxChunkSize - 12;
         const chunksCount = Math.ceil(data.length / bufferSize);
         if (chunksCount > 128) {
             throw new Error(`Cannot log messages bigger than ${bufferSize * 128} bytes`);
@@ -38,16 +30,21 @@ export class Serializer {
 
         const id = randomBytes(8);
         const chunks: Buffer[] = [];
+        const length = data.length;
 
         let sequence = 0;
         while (sequence < chunksCount) {
             const offset = sequence * bufferSize;
+            const readBytes = offset + bufferSize < length
+                ? offset + bufferSize
+                : length;
+
             const chunk = Buffer.from([
-                ...GELF_MAGIC_NO,
-                ...id,
-                sequence++,
-                chunksCount,
-                ...data.slice(offset, offset + bufferSize),
+                ...GELF_MAGIC_NO, // GELF Magic bytes
+                ...id, // Message identifier
+                sequence++, // Sequence
+                chunksCount, // Number of chunks
+                ...data.slice(offset, readBytes), // Message chunk
             ]);
 
             chunks.push(chunk);

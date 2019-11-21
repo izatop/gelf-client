@@ -1,38 +1,41 @@
-import {parse} from "url";
-import {IEnvelope, IMessage, IMessageRest, MessageDefaults} from "./Interface";
+import {parseConnectionString, Timestamp, Transport} from "./config";
+import {ConnectionOptions, IEnvelope, IMessage, IMessageRest, MessageDefaults} from "./Interface";
 import {Level} from "./Level";
-import {getTransport} from "./Transport";
-import {TransportAbstract} from "./TransportAbstract";
-
-const STRICT_CHECKS = process.env.NODE_ENV !== "production";
+import {TransportAbstract, TransportCtor} from "./TransportAbstract";
 
 export class Client {
     public readonly version = "1.1";
+    public readonly options: ConnectionOptions;
     public readonly transport: TransportAbstract;
     public readonly defaults: MessageDefaults = {};
 
-    private constructor(transport: TransportAbstract, defaults: MessageDefaults = {}) {
+    private constructor(transport: TransportAbstract, options: ConnectionOptions, defaults: MessageDefaults = {}) {
         this.transport = transport;
+        this.options = options;
         this.defaults = defaults;
     }
 
-    public static factory(dsn: string, defaults: MessageDefaults = {}) {
-        const config = parse(dsn);
-        const transport = getTransport(config.protocol);
-        return new this(new transport(config), defaults);
+    public get isStrict() {
+        return this.options.strictChecks;
+    }
+
+    public static factory(dsn: string, defaults: MessageDefaults = {}): Client {
+        const options = parseConnectionString(dsn);
+        const transport = Transport.get(options.protocol);
+        return new this(new transport(options), options, defaults);
     }
 
     public clone(defaults: MessageDefaults = {}) {
-        return new Client(this.transport, {...this.defaults, ...defaults});
+        return new Client(this.transport, this.options, {...this.defaults, ...defaults});
     }
 
     public send(data: IMessage & IMessageRest) {
         const {level, message, description, file, line, app, ...rest} = data;
-        if (STRICT_CHECKS) {
+        if (this.isStrict) {
             this.strictChecks(Object.keys(rest));
         }
 
-        const timestamp = Math.round(Date.now() / 1000);
+        const timestamp = Timestamp.now;
         const envelope: IEnvelope = {
             host: app,
             level: level || Level.INFO,
@@ -48,7 +51,39 @@ export class Client {
             envelope[`_${key}`] = value;
         }
 
-        this.transport.send(envelope);
+        return this.transport.send(envelope);
+    }
+
+    public emergency(data: Exclude<IMessage, "level"> & IMessageRest) {
+        return this.send({...data, level: Level.EMERGENCY});
+    }
+
+    public alert(data: Exclude<IMessage, "level"> & IMessageRest) {
+        return this.send({...data, level: Level.ALERT});
+    }
+
+    public critical(data: Exclude<IMessage, "level"> & IMessageRest) {
+        return this.send({...data, level: Level.CRITICAL});
+    }
+
+    public error(data: Exclude<IMessage, "level"> & IMessageRest) {
+        return this.send({...data, level: Level.ERROR});
+    }
+
+    public warning(data: Exclude<IMessage, "level"> & IMessageRest) {
+        return this.send({...data, level: Level.WARNING});
+    }
+
+    public notice(data: Exclude<IMessage, "level"> & IMessageRest) {
+        return this.send({...data, level: Level.NOTICE});
+    }
+
+    public info(data: Exclude<IMessage, "level"> & IMessageRest) {
+        this.send({...data, level: Level.INFO});
+    }
+
+    public debug(data: Exclude<IMessage, "level"> & IMessageRest) {
+        return this.send({...data, level: Level.DEBUG});
     }
 
     public close() {

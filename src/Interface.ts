@@ -1,10 +1,15 @@
 import {Level} from "./Level";
+import {TransportCtor} from "./TransportAbstract";
 
-export interface IPacketOptions {
+export type ConnectionOptions = Readonly<{
+    host: string;
+    port: number;
+    protocol: string;
     compress: boolean;
     minCompressSize: number;
     maxChunkSize: number;
-}
+    strictChecks: boolean;
+}>;
 
 export interface IMessageRest {
     [key: string]: any;
