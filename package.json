@@ -1,6 +1,6 @@
 {
     "name": "gelf-client",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "GELF Client for Node.js written in TypeScript.",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
@@ -8,7 +8,9 @@
     "repository": "https://github.com/izatop/gelf-client",
     "author": "izatop@gmail.com",
     "license": "MIT",
-    "files": ["dist"],
+    "files": [
+        "dist"
+    ],
     "scripts": {
         "clean": "rimraf dist",
         "lint": "tslint 'src/**/*.ts'",
