@@ -15,14 +15,14 @@ export class Client {
         this.defaults = defaults;
     }
 
-    public get isStrict() {
-        return this.options.strictChecks;
-    }
-
     public static factory(dsn: string, defaults: MessageDefaults = {}): Client {
         const options = parseConnectionString(dsn);
         const transport = Transport.get(options.protocol);
         return new this(new transport(options), options, defaults);
+    }
+
+    public get isStrict() {
+        return this.options.strictChecks;
     }
 
     public clone(defaults: MessageDefaults = {}) {
