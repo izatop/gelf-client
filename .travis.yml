@@ -34,4 +34,5 @@ after_script:
 
 branches:
   only:
+    - master
     - /^v\d+\.\d+(\.\d+)?(-\S*)?$/
