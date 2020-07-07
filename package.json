@@ -1,6 +1,6 @@
 {
     "name": "gelf-client",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "description": "GELF Client for Node.js written in TypeScript.",
     "keywords": [
         "gelf",
