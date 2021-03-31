@@ -1,6 +1,6 @@
 {
     "name": "gelf-client",
-    "version": "0.1.5",
+    "version": "0.1.7",
     "description": "GELF Client for Node.js written in TypeScript.",
     "keywords": [
         "gelf",
@@ -31,7 +31,6 @@
     },
     "devDependencies": {
         "@types/jest": "^26.0.22",
-        "husky": "^6.0.0",
         "jest": "^26.6.3",
         "ts-jest": "^26.5.4",
         "tslint": "^6.1.3",
