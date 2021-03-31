@@ -9,28 +9,20 @@ notifications:
   email: false
 
 node_js:
-  - "12"
+  - "15"
 
 before_install:
-  - npm i -g yarn
   - export PATH=`yarn global bin`:$PATH
   - npm config set //registry.npmjs.org/:_authToken $NPM_TOKEN
-  - yarn global add greenkeeper-lockfile@2
 
 install:
   - yarn --pure-lockfile
-
-before_script:
-  - greenkeeper-lockfile-update
 
 script:
   - yarn lint
   - yarn build
   - yarn test
   - yarn publish
-
-after_script:
-  - greenkeeper-lockfile-upload
 
 branches:
   only:
