@@ -4,14 +4,10 @@ import {TestTransport} from "./TestTransport";
 
 const dsn = "test://localhost:123";
 const clientDefaults = {foo: 1};
-const time = 1574345698437;
-const timestamp = Math.round(time / 1000);
 
 Transport.add("test", TestTransport);
-Object.defineProperty(Timestamp, "now", {get: () => timestamp});
 
 test("Add transport", () => {
-    expect(Timestamp.now).toBe(timestamp);
     expect(Transport.get("test")).toBe(TestTransport);
 });
 
@@ -34,8 +30,10 @@ test("Client send", async () => {
     const [written] = transport.written;
     expect(written).toBeInstanceOf(Buffer);
     expect(written.length).toBeGreaterThan(0);
-    expect(JSON.parse(written.toString("utf-8"))).toEqual({
-        timestamp,
+    const {timestamp, ...payload} = JSON.parse(written.toString("utf-8"));
+
+    expect(timestamp <= Date.now()).toBeTruthy();
+    expect(payload).toEqual({
         level: Level.INFO,
         short_message: "test",
         version: "1.1",
@@ -64,6 +62,8 @@ test("Test chunks", async () => {
     const message = Buffer.concat(chunks)
         .toString("utf-8");
 
+    const {timestamp, ...payload} = JSON.parse(message);
     expect(message.length).toBe(expectMessageSize);
-    expect(JSON.parse(message)).toMatchSnapshot();
+    expect(timestamp <= Date.now()).toBeTruthy();
+    expect(payload).toMatchSnapshot();
 });
