@@ -158,7 +158,7 @@ Use this script map in `package.json`:
 
 ```json
 "scripts": {
-  "clean": "rimraf dist",
+  "clean": "rimraf dist tsconfig.tsbuildinfo",
   "build": "bun run clean && tsc",
   "build:watch": "tsc -w",
   "test": "bun test",
@@ -423,13 +423,13 @@ Run:
 ```bash
 bun ci
 bun run check
-bun publish --dry-run
+bun pm pack --dry-run
 git diff --check
 ```
 
 Expected: frozen installation, all quality gates, build, tests, and package
 dry-run pass. The dry-run must list `dist`, `README.md`, and `LICENSE` without
-publishing.
+requiring registry authentication or publishing.
 
 - [ ] **Step 5: Check that legacy tooling no longer drives the repository**
 
@@ -460,7 +460,7 @@ bun run test:typecheck
 bun test
 bun run build
 bun run check
-bun publish --dry-run
+bun pm pack --dry-run
 bun -e 'for (const file of [".github/workflows/ci.yml", ".github/workflows/publish.yml"]) Bun.YAML.parse(await Bun.file(file).text())'
 git diff --check
 git status --short --branch

@@ -24,7 +24,7 @@
     "types": "dist/index.d.ts",
     "typings": "dist/index.d.ts",
     "scripts": {
-        "clean": "rimraf dist",
+        "clean": "rimraf dist tsconfig.tsbuildinfo",
         "build": "bun run clean && tsc",
         "build:watch": "tsc -w",
         "test": "bun test",

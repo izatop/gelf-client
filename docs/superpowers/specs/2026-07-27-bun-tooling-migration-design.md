@@ -51,7 +51,7 @@ TypeScript project will resolve `bun:test` types from `@types/bun`.
 
 | Script           | Command                               | Purpose                                      |
 | ---------------- | ------------------------------------- | -------------------------------------------- |
-| `clean`          | `rimraf dist`                         | Remove build output                          |
+| `clean`          | `rimraf dist tsconfig.tsbuildinfo`    | Remove build output and incremental state    |
 | `build`          | `bun run clean && tsc`                | Produce CommonJS JavaScript and declarations |
 | `build:watch`    | `tsc -w`                              | Rebuild during development                   |
 | `test`           | `bun test`                            | Run the Bun test suite once                  |
