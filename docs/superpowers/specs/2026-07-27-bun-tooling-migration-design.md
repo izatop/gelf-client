@@ -2,14 +2,16 @@
 
 ## Goal
 
-Complete the repository's partial migration from Yarn, Jest, TSLint, and Travis
-CI to Bun, `bun:test`, oxlint, oxfmt, and GitHub Actions without changing the
-public GELF client API.
+Complete the repository's partial migration from Yarn, Jest, TSLint, Travis CI,
+and TypeScript 4.9 tooling to Bun, `bun:test`, oxlint, oxfmt, GitHub Actions,
+and TypeScript 7 without changing the public GELF client API.
 
 ## Current State
 
-The repository already pins Bun 1.3.14 and contains `bun.lock`, oxlint, and
-oxfmt configuration. The migration is incomplete:
+The repository already pins Bun 1.3.14 and TypeScript 7.0.2. The npm registry
+marks TypeScript 7.0.2 as `latest` on July 27, 2026. The repository also
+contains `bun.lock`, oxlint, and oxfmt configuration. The migration is
+incomplete:
 
 - `bun test` discovers all five tests, but every test fails because
   `import * as assert from "assert"` is not callable under Bun's module
@@ -19,6 +21,9 @@ oxfmt configuration. The migration is incomplete:
 - Jest configuration, Jest types, TSLint configuration, Travis configuration,
   and Yarn configuration remain tracked.
 - The existing publish workflow installs Node and invokes Yarn.
+- TypeScript 7 no longer loads ambient type packages by default. Both tsconfig
+  files omit explicit Node and Bun types, so the compiler reports missing
+  built-in modules, `Buffer`, `process`, and test globals.
 - oxlint reports eight errors, and oxfmt reports formatting drift in tracked
   source and configuration files.
 
@@ -64,6 +69,25 @@ that order. The build is last because it writes ignored output to `dist`.
 `@types/jest` will be removed. `@types/bun` and `@types/node` are development
 dependencies rather than runtime dependencies. `bun install` will update
 `bun.lock` after the manifest changes.
+
+## TypeScript 7 Migration
+
+`package.json` and `bun.lock` already pin `typescript` to the current stable
+version, 7.0.2. The implementation will retain the exact pin and adapt the
+repository to the compiler's new defaults.
+
+The source tsconfig will list `node` in `compilerOptions.types`. The test
+tsconfig will list `bun` and `node`. Both projects keep strict checking. The
+package build keeps its CommonJS output, declaration files, and existing
+`dist` layout.
+
+The migration will fix TypeScript 7 diagnostics in configuration or source
+without weakening strictness or skipping library checks beyond the existing
+`skipLibCheck` setting. `build`, `build:watch`, and `test:typecheck` will use the
+project-local TypeScript 7 executable.
+
+This repository does not call the TypeScript compiler API, so it does not need
+the TypeScript 6 compatibility package.
 
 ## Linting and Formatting
 
@@ -118,6 +142,8 @@ examples or package metadata change.
 - `bun run test:typecheck` exits successfully.
 - `bun test` passes all existing behavior and snapshot assertions.
 - `bun run build` produces the package output successfully.
+- `tsc --version` reports 7.0.2, and both tsconfig projects compile with
+  TypeScript 7.
 - `bun run check` reproduces all local CI gates successfully.
 - Both workflow files parse as valid YAML and use only Bun for install, test,
   build, checks, and publication.
@@ -137,3 +163,5 @@ examples or package metadata change.
 - [Bun package publication](https://bun.sh/docs/pm/cli/publish)
 - [setup-bun](https://github.com/oven-sh/setup-bun)
 - [actions/checkout](https://github.com/actions/checkout)
+- [TypeScript 7 release notes](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)
+- [TypeScript latest registry metadata](https://registry.npmjs.org/typescript/latest)
