@@ -5,7 +5,7 @@ The Client supports TCP and UDP transports.
 
 ## Install
 
-`yarn add gelf-client`
+`bun add gelf-client`
 
 ## Usage
 

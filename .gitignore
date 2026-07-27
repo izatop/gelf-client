@@ -1,12 +1,3 @@
-# https://yarnpkg.com/getting-started/qa#which-files-should-be-gitignored
-.yarn/*
-!.yarn/cache
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/sdks
-!.yarn/versions
-
 # common
 *.tsbuildinfo
 node_modules/
@@ -14,7 +5,6 @@ coverage/
 dist/
 
 # auto-generated files
-yarn-*.log
 lerna-*.log
 npm-*.log
 .DS_Store
