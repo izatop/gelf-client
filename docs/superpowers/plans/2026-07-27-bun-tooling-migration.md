@@ -46,7 +46,7 @@ publication. Treat `package.json` scripts as the single local and CI interface.
 - Produces: Bun-native test imports and TypeScript projects with explicit
   runtime type packages.
 
-- [ ] **Step 1: Re-run the existing RED test signal**
+- [x] **Step 1: Re-run the existing RED test signal**
 
 Run:
 
@@ -57,7 +57,7 @@ bun test
 Expected: five failures whose root cause is `TypeError: assert is not a
 function`.
 
-- [ ] **Step 2: Re-run the TypeScript 7 RED signal**
+- [x] **Step 2: Re-run the TypeScript 7 RED signal**
 
 Run:
 
@@ -70,7 +70,7 @@ Expected: both commands fail because TypeScript 7 defaults `types` to `[]`.
 Diagnostics include missing Node built-ins and globals; the test project also
 reports missing `test` and `expect`.
 
-- [ ] **Step 3: Import Bun's test API and a callable Node assertion**
+- [x] **Step 3: Import Bun's test API and a callable Node assertion**
 
 At the start of `test/src/main.test.ts`, use:
 
@@ -89,7 +89,7 @@ import { ok as assert } from "node:assert";
 
 Do not change the five test bodies or their asserted values in this step.
 
-- [ ] **Step 4: Declare TypeScript 7 ambient types**
+- [x] **Step 4: Declare TypeScript 7 ambient types**
 
 Add this option to the source `compilerOptions` in `tsconfig.json`:
 
@@ -103,7 +103,7 @@ Add this option to the test `compilerOptions` in `test/tsconfig.json`:
 "types": ["bun", "node"]
 ```
 
-- [ ] **Step 5: Verify GREEN runtime and compiler signals**
+- [x] **Step 5: Verify GREEN runtime and compiler signals**
 
 Run:
 
@@ -117,7 +117,7 @@ bun test
 Expected: five tests pass, both TypeScript projects pass, and the version is
 `7.0.2`.
 
-- [ ] **Step 6: Check the mutation boundary**
+- [x] **Step 6: Check the mutation boundary**
 
 Confirm from the RED and GREEN outputs:
 
@@ -127,7 +127,7 @@ Confirm from the RED and GREEN outputs:
 
 Do not add tests that assert source text or configuration contents.
 
-- [ ] **Step 7: Commit the runtime and compiler migration**
+- [x] **Step 7: Commit the runtime and compiler migration**
 
 ```bash
 git add src/config.ts test/src/main.test.ts tsconfig.json test/tsconfig.json
@@ -152,7 +152,7 @@ git commit -m "test: migrate suite to Bun and TypeScript 7"
 - Consumes: the passing Bun suite and TypeScript projects from Task 1.
 - Produces: stable local commands used by developers and GitHub Actions.
 
-- [ ] **Step 1: Replace scripts and dependency sections**
+- [x] **Step 1: Replace scripts and dependency sections**
 
 Use this script map in `package.json`:
 
@@ -188,7 +188,7 @@ Use one development dependency section:
 
 Remove the empty runtime `dependencies` section.
 
-- [ ] **Step 2: Remove obsolete tooling files**
+- [x] **Step 2: Remove obsolete tooling files**
 
 Delete:
 
@@ -208,7 +208,7 @@ Change the README installation command to:
 `bun add gelf-client`
 ```
 
-- [ ] **Step 3: Regenerate package metadata with Bun**
+- [x] **Step 3: Regenerate package metadata with Bun**
 
 Run:
 
@@ -220,7 +220,7 @@ bun ci
 Expected: Bun updates `bun.lock`, removes Jest-related packages, and accepts the
 result as frozen.
 
-- [ ] **Step 4: Verify the new runtime and compiler scripts**
+- [x] **Step 4: Verify the new runtime and compiler scripts**
 
 Run:
 
@@ -234,7 +234,7 @@ bun run test:watch --help
 Expected: tests, test type-checking, and build pass. The watch command prints
 Bun test help and exits instead of invoking Jest.
 
-- [ ] **Step 5: Commit the package-manager cleanup**
+- [x] **Step 5: Commit the package-manager cleanup**
 
 ```bash
 git add package.json bun.lock .gitignore README.md
@@ -262,7 +262,7 @@ git commit -m "build: replace legacy tooling with Bun scripts"
 - Consumes: `lint`, `lint:fix`, `fmt`, and `fmt:check` scripts from Task 2.
 - Produces: one clean oxlint configuration and a repeatable oxfmt tree.
 
-- [ ] **Step 1: Capture the lint and format RED signals**
+- [x] **Step 1: Capture the lint and format RED signals**
 
 Run:
 
@@ -274,7 +274,7 @@ bun run fmt:check
 Expected: oxlint reports the known unused imports and variables plus
 `unicorn/no-new-array`; oxfmt reports the unformatted tracked files.
 
-- [ ] **Step 2: Fix the oxlint findings without suppressions**
+- [x] **Step 2: Fix the oxlint findings without suppressions**
 
 Apply these source changes:
 
@@ -301,7 +301,7 @@ const chunks = Array.from({ length: written.length }, () => Buffer.alloc(0));
 Keep the current oxlint categories and plugins. Do not add disable comments or
 turn off rules.
 
-- [ ] **Step 3: Format the tracked tree**
+- [x] **Step 3: Format the tracked tree**
 
 Run:
 
@@ -312,7 +312,7 @@ bun run fmt
 Review the diff. Keep formatting-only changes and reject behavior changes not
 listed in the plan.
 
-- [ ] **Step 4: Verify GREEN quality signals**
+- [x] **Step 4: Verify GREEN quality signals**
 
 Run:
 
@@ -327,7 +327,7 @@ git diff --check
 
 Expected: every command exits successfully.
 
-- [ ] **Step 5: Commit the lint and format migration**
+- [x] **Step 5: Commit the lint and format migration**
 
 ```bash
 git add .oxlintrc.json .oxfmtrc.json package.json README.md src test tsconfig.json docs
@@ -346,7 +346,7 @@ git commit -m "style: enforce oxlint and oxfmt"
 - Consumes: `bun ci` and `bun run check`.
 - Produces: branch and pull-request CI plus tag-triggered npm publication.
 
-- [ ] **Step 1: Create the CI workflow**
+- [x] **Step 1: Create the CI workflow**
 
 Create `.github/workflows/ci.yml`:
 
@@ -376,7 +376,7 @@ jobs:
             - run: bun run check
 ```
 
-- [ ] **Step 2: Replace the publish workflow**
+- [x] **Step 2: Replace the publish workflow**
 
 Use this content in `.github/workflows/publish.yml`:
 
@@ -404,7 +404,7 @@ jobs:
                   NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
 
-- [ ] **Step 3: Format and parse both workflows**
+- [x] **Step 3: Format and parse both workflows**
 
 Run:
 
@@ -416,7 +416,7 @@ bun run fmt:check
 
 Expected: YAML parsing and format checking pass.
 
-- [ ] **Step 4: Verify the complete local CI contract**
+- [x] **Step 4: Verify the complete local CI contract**
 
 Run:
 
@@ -431,7 +431,7 @@ Expected: frozen installation, all quality gates, build, tests, and package
 dry-run pass. The dry-run must list `dist`, `README.md`, and `LICENSE` without
 requiring registry authentication or publishing.
 
-- [ ] **Step 5: Check that legacy tooling no longer drives the repository**
+- [x] **Step 5: Check that legacy tooling no longer drives the repository**
 
 Run:
 
@@ -441,14 +441,14 @@ rg -n "jest|ts-jest|tslint|yarn|actions/setup-node|npm publish" package.json bun
 
 Expected: no matches.
 
-- [ ] **Step 6: Commit the workflows**
+- [x] **Step 6: Commit the workflows**
 
 ```bash
 git add .github/workflows/ci.yml .github/workflows/publish.yml
 git commit -m "ci: run checks and publish with Bun"
 ```
 
-- [ ] **Step 7: Run the final verification matrix**
+- [x] **Step 7: Run the final verification matrix**
 
 Run:
 
