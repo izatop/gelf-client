@@ -1,5 +1,4 @@
-import {Level} from "./Level";
-import {TransportCtor} from "./TransportAbstract";
+import { Level } from "./Level";
 
 export type ConnectionOptions = Readonly<{
     host: string;

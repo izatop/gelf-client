@@ -1,4 +1,4 @@
-import {TransportAbstract} from "../../src/TransportAbstract";
+import { TransportAbstract } from "../../src/TransportAbstract";
 
 export class TestTransport extends TransportAbstract {
     public written: Buffer[] = [];

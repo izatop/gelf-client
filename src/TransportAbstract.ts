@@ -1,7 +1,6 @@
-import {EventEmitter} from "events";
-import {Url} from "url";
-import {ConnectionOptions} from "./Interface";
-import {Serializer} from "./Serializer";
+import { EventEmitter } from "events";
+import { ConnectionOptions } from "./Interface";
+import { Serializer } from "./Serializer";
 
 export abstract class TransportAbstract extends EventEmitter {
     public readonly serializer: Serializer;
@@ -37,4 +36,6 @@ export abstract class TransportAbstract extends EventEmitter {
     protected abstract destroy(): void;
 }
 
-export type TransportCtor<T extends TransportAbstract = TransportAbstract> = new(options: ConnectionOptions) => T;
+export type TransportCtor<T extends TransportAbstract = TransportAbstract> = new (
+    options: ConnectionOptions,
+) => T;

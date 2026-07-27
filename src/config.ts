@@ -1,10 +1,10 @@
-import {ok as assert} from "node:assert";
-import {parse} from "url";
-import {promisify} from "util";
-import {deflate, ZlibOptions} from "zlib";
-import {ConnectionOptions} from "./Interface";
-import {TCPTransport, UDPTransport} from "./Transport";
-import {TransportCtor} from "./TransportAbstract";
+import { ok as assert } from "node:assert";
+import { parse } from "url";
+import { promisify } from "util";
+import { deflate, ZlibOptions } from "zlib";
+import { ConnectionOptions } from "./Interface";
+import { TCPTransport, UDPTransport } from "./Transport";
+import { TransportCtor } from "./TransportAbstract";
 
 // @see https://docs.graylog.org/en/3.1/pages/gelf.html#chunking
 export const GELF_MAGIC_NO = [0x1e, 0x0f];
@@ -29,7 +29,8 @@ const getIntValue = (value: any, min: number, max: number, defaultValue: number)
 };
 
 // compress is a promised zlib.deflate function
-export const compress: (data: Buffer, options?: ZlibOptions) => Promise<Buffer> = promisify(deflate);
+export const compress: (data: Buffer, options?: ZlibOptions) => Promise<Buffer> =
+    promisify(deflate);
 
 // transports
 export const Transport = {
@@ -58,8 +59,7 @@ export const Timestamp = {
 
 export const parseConnectionString = (dsn: string): ConnectionOptions => {
     const config = parse(dsn);
-    const options = new URLSearchParams(config.query as string || "");
-    const alwaysStrictChecks = options.has("strict") || STRICT_CHECKS;
+    const options = new URLSearchParams((config.query as string) || "");
 
     assert(config.hostname, `Empty hostname`);
     assert(config.protocol, `Empty protocol`);

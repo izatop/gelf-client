@@ -1,7 +1,7 @@
-import {Client} from "./Client";
+import { Client } from "./Client";
 
-export {Client};
-export {Level} from "./Level";
+export { Client };
+export { Level } from "./Level";
 export * from "./Interface";
 export * from "./TransportAbstract";
 

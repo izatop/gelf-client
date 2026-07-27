@@ -1,7 +1,6 @@
 import * as dgram from "dgram";
-import {Url} from "url";
-import {ConnectionOptions} from "../Interface";
-import {TransportAbstract} from "../TransportAbstract";
+import { ConnectionOptions } from "../Interface";
+import { TransportAbstract } from "../TransportAbstract";
 
 export class UDPTransport extends TransportAbstract {
     protected socket: dgram.Socket;

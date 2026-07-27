@@ -1,6 +1,6 @@
-import {randomBytes} from "crypto";
-import {compress, GELF_MAGIC_NO} from "./config";
-import {ConnectionOptions} from "./Interface";
+import { randomBytes } from "crypto";
+import { compress, GELF_MAGIC_NO } from "./config";
+import { ConnectionOptions } from "./Interface";
 
 export class Serializer {
     public readonly options: ConnectionOptions;
@@ -35,9 +35,7 @@ export class Serializer {
         let sequence = 0;
         while (sequence < chunksCount) {
             const offset = sequence * bufferSize;
-            const readBytes = offset + bufferSize < length
-                ? offset + bufferSize
-                : length;
+            const readBytes = offset + bufferSize < length ? offset + bufferSize : length;
 
             const chunk = Buffer.from([
                 ...GELF_MAGIC_NO, // GELF Magic bytes

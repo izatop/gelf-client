@@ -12,9 +12,10 @@ The Client supports TCP and UDP transports.
 Simple usage with UDP transport:
 
 ```typescript
-import GELFClient, {Level} from "gelf-client";
-const client = GELFClient.factory("udp://localhost:12201/?compress", {app: "app"})
-    .clone({pid: process.pid});
+import GELFClient, { Level } from "gelf-client";
+const client = GELFClient.factory("udp://localhost:12201/?compress", { app: "app" }).clone({
+    pid: process.pid,
+});
 
 client.send({
     level: Level.ERROR,
@@ -38,9 +39,9 @@ This code will send these json:
     "level": 3,
     "_user_id": 42,
     "_request_id": "a36f0d30-0b90-11ea-8d71-362b9e155667",
-    "_pid": 123,
+    "_pid": 123
 }
-``` 
+```
 
 ### Client API
 
@@ -52,7 +53,7 @@ Connection string (DSN) format `proto://hostOrIp[:port]/[?[flag[&option=value[&o
 
 Options:
 
- * `compress` - use `zlib` compression as flag
- * `maxChunkSize` - maximum size of a message chunk, default 1440
- * `minCompressSize` - minimal size of a message to compress, default 1440
- * `strict` - custom fields strict checks
+- `compress` - use `zlib` compression as flag
+- `maxChunkSize` - maximum size of a message chunk, default 1440
+- `minCompressSize` - minimal size of a message to compress, default 1440
+- `strict` - custom fields strict checks

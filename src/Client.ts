@@ -1,7 +1,7 @@
-import {parseConnectionString, Timestamp, Transport} from "./config";
-import {ConnectionOptions, IEnvelope, IMessage, IMessageRest, MessageDefaults} from "./Interface";
-import {Level} from "./Level";
-import {TransportAbstract, TransportCtor} from "./TransportAbstract";
+import { parseConnectionString, Timestamp, Transport } from "./config";
+import { ConnectionOptions, IEnvelope, IMessage, IMessageRest, MessageDefaults } from "./Interface";
+import { Level } from "./Level";
+import { TransportAbstract } from "./TransportAbstract";
 
 export class Client {
     public readonly version = "1.1";
@@ -9,7 +9,11 @@ export class Client {
     public readonly transport: TransportAbstract;
     public readonly defaults: MessageDefaults = {};
 
-    private constructor(transport: TransportAbstract, options: ConnectionOptions, defaults: MessageDefaults = {}) {
+    private constructor(
+        transport: TransportAbstract,
+        options: ConnectionOptions,
+        defaults: MessageDefaults = {},
+    ) {
         this.transport = transport;
         this.options = options;
         this.defaults = defaults;
@@ -26,11 +30,11 @@ export class Client {
     }
 
     public clone(defaults: MessageDefaults = {}) {
-        return new Client(this.transport, this.options, {...this.defaults, ...defaults});
+        return new Client(this.transport, this.options, { ...this.defaults, ...defaults });
     }
 
     public send(data: IMessage & IMessageRest) {
-        const {level, message, description, file, line, app, ...rest} = data;
+        const { level, message, description, file, line, app, ...rest } = data;
         if (this.isStrict) {
             this.strictChecks(Object.keys(rest));
         }
@@ -55,35 +59,35 @@ export class Client {
     }
 
     public emergency(data: Exclude<IMessage, "level"> & IMessageRest) {
-        return this.send({...data, level: Level.EMERGENCY});
+        return this.send({ ...data, level: Level.EMERGENCY });
     }
 
     public alert(data: Exclude<IMessage, "level"> & IMessageRest) {
-        return this.send({...data, level: Level.ALERT});
+        return this.send({ ...data, level: Level.ALERT });
     }
 
     public critical(data: Exclude<IMessage, "level"> & IMessageRest) {
-        return this.send({...data, level: Level.CRITICAL});
+        return this.send({ ...data, level: Level.CRITICAL });
     }
 
     public error(data: Exclude<IMessage, "level"> & IMessageRest) {
-        return this.send({...data, level: Level.ERROR});
+        return this.send({ ...data, level: Level.ERROR });
     }
 
     public warning(data: Exclude<IMessage, "level"> & IMessageRest) {
-        return this.send({...data, level: Level.WARNING});
+        return this.send({ ...data, level: Level.WARNING });
     }
 
     public notice(data: Exclude<IMessage, "level"> & IMessageRest) {
-        return this.send({...data, level: Level.NOTICE});
+        return this.send({ ...data, level: Level.NOTICE });
     }
 
     public info(data: Exclude<IMessage, "level"> & IMessageRest) {
-        this.send({...data, level: Level.INFO});
+        this.send({ ...data, level: Level.INFO });
     }
 
     public debug(data: Exclude<IMessage, "level"> & IMessageRest) {
-        return this.send({...data, level: Level.DEBUG});
+        return this.send({ ...data, level: Level.DEBUG });
     }
 
     public close() {
