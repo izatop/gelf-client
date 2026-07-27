@@ -6,6 +6,7 @@
         "rootDir": "src",
         "declaration": true,
         "sourceMap": true,
+        "types": ["node"],
         "strict": true,
         "strictNullChecks": true,
         "forceConsistentCasingInFileNames": true,

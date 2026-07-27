@@ -6,6 +6,7 @@
         "rootDir": "../",
         "declaration": true,
         "sourceMap": true,
+        "types": ["bun", "node"],
         "strict": true,
         "strictNullChecks": true,
         "forceConsistentCasingInFileNames": true,

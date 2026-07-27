@@ -1,4 +1,4 @@
-import * as assert from "assert";
+import {ok as assert} from "node:assert";
 import {parse} from "url";
 import {promisify} from "util";
 import {deflate, ZlibOptions} from "zlib";

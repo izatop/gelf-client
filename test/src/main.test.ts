@@ -1,5 +1,6 @@
+import {expect, test} from "bun:test";
 import {Client, Level} from "../../src";
-import {Timestamp, Transport} from "../../src/config";
+import {Transport} from "../../src/config";
 import {TestTransport} from "./TestTransport";
 
 const dsn = "test://localhost:123";
