@@ -1,21 +1,23 @@
-name: Publish
+name: CI
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - "**"
+  pull_request:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  publish:
+  ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun ci
       - run: bun run check
-      - run: bun publish
-        env:
-          NPM_CONFIG_TOKEN: ${{ secrets.NPM_TOKEN }}
