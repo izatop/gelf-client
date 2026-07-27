@@ -57,18 +57,22 @@ TypeScript project will resolve `bun:test` types from `@types/bun`.
 | `test`           | `bun test`                            | Run the Bun test suite once                  |
 | `test:watch`     | `bun test --watch`                    | Run tests in watch mode                      |
 | `test:typecheck` | `tsc -p test/tsconfig.json`           | Type-check source and tests without emitting |
+| `test:package`   | `bun test/package-consumer.ts`        | Type-check the packed package as a consumer  |
 | `lint`           | `oxlint .`                            | Lint the repository                          |
 | `lint:fix`       | `oxlint --fix .`                      | Apply safe lint fixes                        |
 | `fmt`            | `oxfmt .`                             | Format tracked repository files              |
 | `fmt:check`      | `oxfmt --check .`                     | Check formatting without writing             |
 | `check`          | chained read-only checks plus `build` | Reproduce the complete CI gate locally       |
 
-`check` will run formatting, lint, test type-checking, tests, and the build in
-that order. The build is last because it writes ignored output to `dist`.
+`check` will run formatting, lint, test type-checking, tests, the build, and the
+packed-package consumer check in that order.
 
-`@types/jest` will be removed. `@types/bun` and `@types/node` are development
-dependencies rather than runtime dependencies. `bun install` will update
-`bun.lock` after the manifest changes.
+`@types/jest` will be removed. `@types/bun` is a development dependency.
+`@types/node` is a runtime dependency because the public declarations expose
+Node's `Buffer` and `EventEmitter` types. The generated entry declaration
+preserves an explicit Node type reference so that TypeScript 7 consumers load
+those ambient declarations despite its new empty `types` default. `bun install`
+will update `bun.lock` after the manifest changes.
 
 ## TypeScript 7 Migration
 
@@ -109,9 +113,9 @@ repeatable with no diff.
 `.github/workflows/ci.yml` will run for branch pushes and pull requests. It will:
 
 1. grant only `contents: read`;
-2. check out the repository with `actions/checkout@v7`;
+2. check out the repository with the verified `actions/checkout` v7 commit;
 3. install the Bun version pinned by `packageManager` with
-   `oven-sh/setup-bun@v2`;
+   the verified `oven-sh/setup-bun` v2 commit;
 4. install exactly `bun.lock` with `bun ci`;
 5. run `bun run check`.
 
@@ -140,6 +144,7 @@ examples or package metadata change.
 - `bun run fmt:check` exits successfully.
 - `bun run lint` exits successfully without suppressed existing findings.
 - `bun run test:typecheck` exits successfully.
+- `bun run test:package` compiles a clean consumer against the packed tarball.
 - `bun test` passes all existing behavior and snapshot assertions.
 - `bun run build` produces the package output successfully.
 - `tsc --version` reports 7.0.2, and both tsconfig projects compile with

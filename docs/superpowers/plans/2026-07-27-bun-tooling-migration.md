@@ -140,6 +140,9 @@ git commit -m "test: migrate suite to Bun and TypeScript 7"
 
 - Modify: `package.json:26-44`
 - Modify: `bun.lock`
+- Modify: `src/index.ts:1`
+- Modify: `test/tsconfig.json:21`
+- Create: `test/package-consumer.ts`
 - Modify: `.gitignore:1-19`
 - Modify: `README.md:6-8`
 - Delete: `jest.config.js`
@@ -164,21 +167,30 @@ Use this script map in `package.json`:
   "test": "bun test",
   "test:watch": "bun test --watch",
   "test:typecheck": "tsc -p test/tsconfig.json",
+  "test:package": "bun test/package-consumer.ts",
   "lint": "oxlint .",
   "lint:fix": "oxlint --fix .",
   "fmt": "oxfmt .",
   "fmt:check": "oxfmt --check .",
-  "check": "bun run fmt:check && bun run lint && bun run test:typecheck && bun run test && bun run build",
+  "check": "bun run fmt:check && bun run lint && bun run test:typecheck && bun run test && bun run build && bun run test:package",
   "postversion": "git push --tags && git push"
 }
 ```
 
-Use one development dependency section:
+Keep Node types as a runtime dependency because the published declarations
+expose `Buffer` and `EventEmitter`:
+
+```json
+"dependencies": {
+  "@types/node": "^26.1.1"
+}
+```
+
+Use this development dependency section:
 
 ```json
 "devDependencies": {
   "@types/bun": "^1.3.14",
-  "@types/node": "^26.1.1",
   "oxfmt": "^0.60.0",
   "oxlint": "^1.75.0",
   "rimraf": "^6.1.3",
@@ -186,7 +198,9 @@ Use one development dependency section:
 }
 ```
 
-Remove the empty runtime `dependencies` section.
+Preserve `/// <reference types="node" preserve="true" />` in the generated entry
+declaration. Add an offline package-consumer test that unpacks the real tarball
+and compiles it with TypeScript 7.
 
 - [x] **Step 2: Remove obsolete tooling files**
 
@@ -228,11 +242,13 @@ Run:
 bun run test
 bun run test:typecheck
 bun run build
+bun run test:package
 bun run test:watch --help
 ```
 
-Expected: tests, test type-checking, and build pass. The watch command prints
-Bun test help and exits instead of invoking Jest.
+Expected: tests, test type-checking, build, and packed-package consumer
+type-checking pass. The watch command prints Bun test help and exits instead of
+invoking Jest.
 
 - [x] **Step 5: Commit the package-manager cleanup**
 
@@ -322,6 +338,7 @@ bun run lint
 bun run test:typecheck
 bun run test
 bun run build
+bun run test:package
 git diff --check
 ```
 
@@ -370,8 +387,8 @@ jobs:
     ci:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v7
-            - uses: oven-sh/setup-bun@v2
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+            - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
             - run: bun ci
             - run: bun run check
 ```
@@ -395,8 +412,8 @@ jobs:
     publish:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v7
-            - uses: oven-sh/setup-bun@v2
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+            - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
             - run: bun ci
             - run: bun run check
             - run: bun publish
@@ -459,6 +476,7 @@ bun run lint
 bun run test:typecheck
 bun test
 bun run build
+bun run test:package
 bun run check
 bun pm pack --dry-run
 bun -e 'for (const file of [".github/workflows/ci.yml", ".github/workflows/publish.yml"]) Bun.YAML.parse(await Bun.file(file).text())'
