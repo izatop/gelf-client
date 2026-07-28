@@ -1,3 +1,4 @@
+import { hostname } from "node:os";
 import { parseConnectionString, Timestamp, Transport } from "./config";
 import { ConnectionOptions, IEnvelope, IMessage, IMessageRest, MessageDefaults } from "./Interface";
 import { Level } from "./Level";
@@ -44,8 +45,8 @@ export class Client {
 
         const timestamp = Timestamp.now;
         const envelope: IEnvelope = {
-            host: app,
-            level: level || Level.INFO,
+            host: app || hostname(),
+            level: level ?? Level.INFO,
             version: this.version,
             short_message: message,
             full_message: description,

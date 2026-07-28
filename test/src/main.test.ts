@@ -1,15 +1,20 @@
 import { expect, test } from "bun:test";
+import { hostname } from "node:os";
 import { Client, Level } from "../../src";
-import { Transport } from "../../src/config";
+import { parseConnectionString, Transport } from "../../src/config";
 import { TestTransport } from "./TestTransport";
 
 const dsn = "test://localhost:123";
-const clientDefaults = { foo: 1 };
+const clientDefaults = { app: "test", foo: 1 };
 
 Transport.add("test", TestTransport);
 
 test("Add transport", () => {
     expect(Transport.get("test")).toBe(TestTransport);
+});
+
+test("Connection string accepts the full port range", () => {
+    expect(parseConnectionString("tcp://localhost:65535").port).toBe(65535);
 });
 
 test("Client factory", async () => {
@@ -38,6 +43,7 @@ test("Client send", async () => {
     expect(timestamp).toBeGreaterThanOrEqual(startedAt);
     expect(timestamp).toBeLessThanOrEqual(finishedAt);
     expect(payload).toEqual({
+        host: "test",
         level: Level.INFO,
         short_message: "test",
         version: "1.1",
@@ -56,18 +62,33 @@ test("Client applies and overrides cloned defaults", async () => {
         request_id: "clone",
     });
 
+    await requestClient.send({ message: "clone defaults" });
     await requestClient.send({
-        message: "defaults",
+        message: "send override",
         request_id: "send",
     });
 
     const transport = requestClient.transport as TestTransport;
-    const [written] = transport.written;
-    const { timestamp: _timestamp, ...payload } = JSON.parse(written.toString("utf-8"));
-    expect(payload).toEqual({
+    const [cloneWritten, overrideWritten] = transport.written;
+    const { timestamp: _cloneTimestamp, ...clonePayload } = JSON.parse(
+        cloneWritten.toString("utf-8"),
+    );
+    const { timestamp: _overrideTimestamp, ...overridePayload } = JSON.parse(
+        overrideWritten.toString("utf-8"),
+    );
+    expect(clonePayload).toEqual({
         host: "checkout",
         level: Level.INFO,
-        short_message: "defaults",
+        short_message: "clone defaults",
+        version: "1.1",
+        _environment: "test",
+        _pid: 123,
+        _request_id: "clone",
+    });
+    expect(overridePayload).toEqual({
+        host: "checkout",
+        level: Level.INFO,
+        short_message: "send override",
         version: "1.1",
         _environment: "test",
         _pid: 123,
@@ -83,13 +104,37 @@ test("Client info returns the send promise", async () => {
     await result;
 });
 
-test("Test chunks", async () => {
+test("Client preserves emergency severity", async () => {
+    const client = Client.factory(dsn, { app: "test" });
+
+    await client.send({
+        level: Level.EMERGENCY,
+        message: "explicit emergency",
+    });
+    await client.emergency({ message: "helper emergency" });
+
+    const transport = client.transport as TestTransport;
+    const levels = transport.written.map((written) => JSON.parse(written.toString("utf-8")).level);
+    expect(levels).toEqual([Level.EMERGENCY, Level.EMERGENCY]);
+});
+
+test("Client uses the system hostname by default", async () => {
     const client = Client.factory(dsn);
+    await client.info({ message: "host fallback" });
+
+    const transport = client.transport as TestTransport;
+    const [written] = transport.written;
+    const payload = JSON.parse(written.toString("utf-8"));
+    expect(payload.host).toBe(hostname());
+});
+
+test("Test chunks", async () => {
+    const client = Client.factory(dsn, { app: "test" });
     await client.send({ message: "chunk test", description: "foo".repeat(1100) });
     const transport = client.transport as TestTransport;
     const written = transport.written!;
     const expectChunksCount = 3;
-    const expectMessageSize = 3397;
+    const expectMessageSize = 3411;
     expect(written.length).toBe(expectChunksCount);
 
     const chunks = Array.from({ length: written.length }, () => Buffer.alloc(0));

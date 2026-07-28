@@ -15,6 +15,11 @@ export class TCPTransport extends TransportAbstract {
         this.socket.write(data);
     }
 
+    protected enqueue(data: Buffer): Promise<void> {
+        this.write(Buffer.concat([data, Buffer.from([0])]));
+        return Promise.resolve();
+    }
+
     protected destroy() {
         this.socket.end();
     }

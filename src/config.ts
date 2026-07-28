@@ -64,8 +64,7 @@ export const parseConnectionString = (dsn: string): ConnectionOptions => {
     assert(config.hostname, `Empty hostname`);
     assert(config.protocol, `Empty protocol`);
 
-    // Ports 1024-49151 are the User Ports and are the ones to use for your own protocols.
-    const port = getIntValue(config.port, 1024, 49151, 12201);
+    const port = getIntValue(config.port, 1, 65535, 12201);
     const host = config.hostname!;
     const protocol = config.protocol!.substr(0, config.protocol!.length - 1);
 
