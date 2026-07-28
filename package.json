@@ -30,12 +30,13 @@
         "test": "bun test",
         "test:watch": "bun test --watch",
         "test:typecheck": "tsc -p test/tsconfig.json",
+        "examples:typecheck": "tsc -p examples/tsconfig.json",
         "test:package": "bun test/package-consumer.ts",
         "lint": "oxlint .",
         "lint:fix": "oxlint --fix .",
         "fmt": "oxfmt .",
         "fmt:check": "oxfmt --check .",
-        "check": "bun run fmt:check && bun run lint && bun run test:typecheck && bun run test && bun run build && bun run test:package",
+        "check": "bun run fmt:check && bun run lint && bun run test:typecheck && bun run examples:typecheck && bun run test && bun run build && bun run test:package",
         "postversion": "git push --tags && git push"
     },
     "dependencies": {

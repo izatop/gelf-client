@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "module": "preserve",
+        "moduleResolution": "bundler",
+        "noEmit": true,
+        "paths": {
+            "gelf-client": ["../src/index.ts"]
+        },
+        "strict": true,
+        "target": "esnext",
+        "types": ["node"]
+    },
+    "include": ["*.ts"]
+}
