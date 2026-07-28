@@ -69,13 +69,18 @@ See the complete
 Use a connection string to select UDP or TCP:
 
 ```typescript
+import GELFClient from "gelf-client";
+
 const udpClient = GELFClient.factory("udp://localhost:12201");
 const tcpClient = GELFClient.factory("tcp://localhost:12201");
 ```
 
-UDP supports GELF chunking and optional zlib compression. TCP writes each GELF
-payload to a persistent socket. See the complete
+UDP supports GELF chunking and optional zlib compression. TCP writes each
+uncompressed, non-chunked JSON payload to a persistent socket and terminates it
+with a null byte. See the complete
 [TCP example](https://github.com/izatop/gelf-client/blob/master/examples/tcp.ts).
+Graylog documents the wire rules in its
+[GELF format specification](https://go2docs.graylog.org/current/getting_in_log_data/gelf_format.html).
 
 ## Defaults and request context
 
@@ -123,6 +128,8 @@ The client maps standard fields to their GELF names:
 
 Any other property becomes a GELF custom field with an `_` prefix.
 `request_id` becomes `_request_id`; you do not need to add the prefix yourself.
+When you omit `app`, the client uses the operating system hostname for the
+required GELF `host` field.
 
 ## Client API
 
@@ -181,8 +188,8 @@ udp://graylog.internal:12201/?compress&strict&maxChunkSize=1400
 | Item              | Default | Description                                             |
 | ----------------- | ------: | ------------------------------------------------------- |
 | protocol          |       - | `udp` or `tcp`.                                         |
-| port              | `12201` | Graylog GELF input port.                                |
-| `compress`        |     off | Compress chunked payloads with zlib.                    |
+| port              | `12201` | Graylog GELF input port in the range `1..65535`.        |
+| `compress`        |     off | Compress chunked UDP payloads with zlib.                |
 | `maxChunkSize`    |  `1400` | Maximum UDP chunk size in bytes.                        |
 | `minCompressSize` |  `1400` | Compression threshold used by the serializer.           |
 | `strict`          |     env | Reject custom field names outside letters, digits, `_`. |
@@ -196,6 +203,9 @@ TCP connection errors, UDP socket errors, and serialization errors use the
 transport's `error` event. Register a listener before sending:
 
 ```typescript
+import GELFClient from "gelf-client";
+
+const client = GELFClient.factory("udp://localhost:12201");
 client.transport.on("error", (error) => {
     console.error("GELF transport error", error);
 });

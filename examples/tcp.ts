@@ -1,6 +1,8 @@
 import GELFClient from "gelf-client";
 
-const client = GELFClient.factory("tcp://localhost:12201");
+const client = GELFClient.factory("tcp://localhost:12201", {
+    app: "queue-worker",
+});
 client.transport.on("error", (error) => {
     console.error("GELF transport error", error);
 });

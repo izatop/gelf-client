@@ -4,6 +4,7 @@ const client = GELFClient.factory("udp://localhost:12201", {
     app: "checkout",
     environment: "production",
 });
+
 const requestClient = client.clone({
     request_id: "req-123",
     user_id: 42,
