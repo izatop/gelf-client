@@ -13,8 +13,12 @@ export abstract class TransportAbstract extends EventEmitter {
         this.serializer = new Serializer(options);
     }
 
-    public send(data: object) {
-        return this.enqueue(Buffer.from(JSON.stringify(data), "utf-8"));
+    public async send(data: object) {
+        try {
+            await this.enqueue(Buffer.from(JSON.stringify(data), "utf-8"));
+        } catch (error) {
+            this.emit("error", error);
+        }
     }
 
     public close() {

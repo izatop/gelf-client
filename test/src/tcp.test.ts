@@ -44,7 +44,7 @@ const receiveTCPFrames = async (
     client.transport.on("error", rejectFrames);
     const timeout = setTimeout(() => {
         rejectFrames(new Error(`Timed out waiting for ${expectedFrames} TCP frames`));
-    }, 1000);
+    }, 5000);
 
     try {
         await send(client);

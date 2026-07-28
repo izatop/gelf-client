@@ -104,6 +104,24 @@ test("Client info returns the send promise", async () => {
     await result;
 });
 
+test("Client emits JSON encoding errors through the transport", async () => {
+    const client = Client.factory(dsn);
+    let emittedError: unknown;
+    client.transport.once("error", (error) => {
+        emittedError = error;
+    });
+
+    const result = client.info({
+        message: "encoding error",
+        value: 1n,
+    });
+
+    expect(result).toBeInstanceOf(Promise);
+    await result;
+    expect(emittedError).toBeInstanceOf(TypeError);
+    expect((client.transport as TestTransport).written).toHaveLength(0);
+});
+
 test("Client preserves emergency severity", async () => {
     const client = Client.factory(dsn, { app: "test" });
 
