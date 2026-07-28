@@ -34,7 +34,10 @@ export class Client {
     }
 
     public send(data: IMessage & IMessageRest) {
-        const { level, message, description, file, line, app, ...rest } = data;
+        const { level, message, description, file, line, app, ...rest } = {
+            ...this.defaults,
+            ...data,
+        };
         if (this.isStrict) {
             this.strictChecks(Object.keys(rest));
         }
@@ -83,7 +86,7 @@ export class Client {
     }
 
     public info(data: Exclude<IMessage, "level"> & IMessageRest) {
-        this.send({ ...data, level: Level.INFO });
+        return this.send({ ...data, level: Level.INFO });
     }
 
     public debug(data: Exclude<IMessage, "level"> & IMessageRest) {
