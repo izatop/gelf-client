@@ -19,8 +19,10 @@ Actions, npm.
 ## Global Constraints
 
 - Work directly on `master`.
-- Keep the public GELF wire names and transport framing unchanged.
-- Keep TCP, UDP, compression, chunking, and DSN parsing outside this patch.
+- Keep the public GELF wire names and method signatures unchanged.
+- Keep UDP framing, compression, chunking, and DSN parsing outside this patch.
+- Make TCP messages uncompressed, non-chunked, and null-delimited.
+- Guarantee GELF `host` with an `app` value or system-hostname fallback.
 - Write public documentation and examples in English.
 - Show npm, Bun, and Yarn installation commands.
 - Release exact version `0.1.12` through tag `v0.1.12`.
@@ -147,7 +149,116 @@ git add src/Client.ts test/src/main.test.ts
 git commit -m "fix: apply client message defaults"
 ```
 
-### Task 2: Add checked public examples
+### Task 2: Enforce GELF severity, host, and TCP framing
+
+**Files:**
+
+- Modify: `src/Client.ts`
+- Modify: `src/Transport/TCPTransport.ts`
+- Modify: `test/src/main.test.ts`
+- Create: `test/src/tcp.test.ts`
+
+**Interfaces:**
+
+- Consumes: `Level.EMERGENCY`, `Client.send()`, `TCPTransport`, and Node's
+  system hostname.
+- Produces: required `host`, preserved level zero, and one null-delimited JSON
+  frame per TCP send.
+
+- [ ] **Step 1: Add RED tests for emergency level and host fallback**
+
+Add a client test that sends both:
+
+```typescript
+await client.send({ level: Level.EMERGENCY, message: "explicit emergency" });
+await client.emergency({ message: "helper emergency" });
+```
+
+Assert that both serialized envelopes contain `level: 0`.
+
+Create a client without `app`, send a message, and assert:
+
+```typescript
+expect(payload.host).toBe(hostname());
+```
+
+Run:
+
+```bash
+bun test test/src/main.test.ts
+```
+
+Expected: emergency messages contain level `6`, and messages without `app`
+omit `host`.
+
+- [ ] **Step 2: Preserve zero and add the host fallback**
+
+Import `hostname` from `node:os`. Build the envelope with:
+
+```typescript
+host: app || hostname(),
+level: level ?? Level.INFO,
+```
+
+Run:
+
+```bash
+bun test test/src/main.test.ts
+bun run test:typecheck
+```
+
+Expected: all client tests pass.
+
+- [ ] **Step 3: Add RED integration tests for TCP framing**
+
+Use `node:net` to start a local TCP server on `127.0.0.1` with port `0`.
+Collect bytes until the expected number of `0x00` delimiters arrives.
+
+Add three tests:
+
+1. one message parses after removing its final null byte;
+2. two sends produce two independently parseable null-delimited frames;
+3. a description larger than `maxChunkSize` still produces one JSON frame with
+   one null delimiter and no UDP magic bytes.
+
+Run:
+
+```bash
+bun test test/src/tcp.test.ts
+```
+
+Expected: current TCP writes have no null delimiters; the large payload may use
+UDP chunk headers.
+
+- [ ] **Step 4: Bypass UDP serialization for TCP**
+
+Override `enqueue()` in `TCPTransport`:
+
+```typescript
+protected enqueue(data: Buffer): Promise<void> {
+    this.write(Buffer.concat([data, Buffer.from([0])]));
+    return Promise.resolve();
+}
+```
+
+Run:
+
+```bash
+bun test test/src/tcp.test.ts
+bun test
+bun run test:typecheck
+```
+
+Expected: the TCP tests and complete Bun suite pass.
+
+- [ ] **Step 5: Commit GELF compliance fixes**
+
+```bash
+git add src/Client.ts src/Transport/TCPTransport.ts test/src/main.test.ts test/src/tcp.test.ts
+git commit -m "fix: conform payloads to GELF 1.1"
+```
+
+### Task 3: Add checked public examples
 
 **Files:**
 
@@ -288,7 +399,7 @@ git add examples package.json
 git commit -m "docs: add checked GELF client examples"
 ```
 
-### Task 3: Rewrite and proofread the README
+### Task 4: Rewrite and proofread the README
 
 **Files:**
 
@@ -372,7 +483,7 @@ git add README.md
 git commit -m "docs: rewrite usage and API guide"
 ```
 
-### Task 4: Prepare and publish version 0.1.12
+### Task 5: Prepare and publish version 0.1.12
 
 **Files:**
 

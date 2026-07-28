@@ -15,11 +15,12 @@ This patch covers:
 - installation commands for npm, Bun, and Yarn;
 - three TypeScript examples under `examples/`;
 - regression fixes for message defaults and `Client.info()`;
+- GELF-compliant emergency severity, host fallback, and TCP framing;
 - stronger tests for timestamps and default-field behavior;
 - a patch release through the existing tag-driven publish workflow.
 
-The patch will not change transport framing, compression, chunking, DSN
-parsing, or the GELF wire format.
+The patch will not change UDP framing, compression, chunking, DSN parsing, or
+the public method signatures.
 
 ## README Structure
 
@@ -86,6 +87,24 @@ The severity helpers return the result of `send()` except for `info()`.
 `info()` will return `this.send(...)` so callers can await it in the same way as
 `error()`, `warning()`, and the other helpers.
 
+### Required Host and Emergency Severity
+
+GELF 1.1 requires `host`. `send()` will use the message or default `app` value
+when present and fall back to `node:os` `hostname()` when the caller omits it.
+This preserves the optional `app` TypeScript field while producing a valid
+payload.
+
+`Level.EMERGENCY` has numeric value `0`. `send()` will use nullish fallback for
+the default info level so it preserves severity zero.
+
+### TCP Framing
+
+GELF TCP accepts one uncompressed, non-chunked JSON payload followed by a null
+byte. `TCPTransport` will bypass the UDP serializer and write
+`JSON bytes + 0x00` for each message. Multiple calls will produce separate
+null-delimited frames on the same socket, including payloads larger than the
+UDP chunk threshold.
+
 ## Tests
 
 The Bun suite will prove:
@@ -95,11 +114,15 @@ The Bun suite will prove:
 - call-specific fields override defaults;
 - custom default fields receive the GELF `_` prefix;
 - `info()` returns the transport send promise;
+- explicit and helper-based emergency messages preserve level `0`;
+- messages without `app` use the system hostname;
+- TCP emits one null-delimited frame per small or large message;
 - timestamps use seconds and stay within the test's start and end bounds.
 
-The current transport, strict-field, serialization, and chunk tests remain.
-The new assertions will inspect the in-memory test transport and will not use a
-network socket.
+The current strict-field, UDP serialization, and chunk tests remain. Client
+tests will inspect the in-memory test transport. TCP tests will use a local
+server on an operating-system-assigned port and will not contact an external
+service.
 
 ## DSN Documentation
 
@@ -146,7 +169,8 @@ will not run a second `bun publish`.
 - README documents the public client methods, levels, DSN flags, error
   handling, and development commands.
 - Three examples compile through `bun run examples:typecheck`.
-- Defaults, clone overrides, and `info()` pass focused Bun tests.
+- Defaults, clone overrides, `info()`, severity zero, host fallback, and TCP
+  framing pass focused Bun tests.
 - `bun run check` includes example type-checking and exits with code zero.
 - `bun pm pack --dry-run` includes the built declarations and updated README.
 - GitHub CI and Publish workflows succeed for `v0.1.12`.
@@ -154,8 +178,8 @@ will not run a second `bun publish`.
 
 ## Out of Scope
 
-- changes to TCP or UDP framing;
-- changes to serializer compression or chunk thresholds;
+- changes to UDP framing or chunk thresholds;
+- compressed GELF TCP, which the protocol does not support;
 - a new transport or logging integration;
 - a public API redesign;
 - a minor or major version release.
