@@ -20,7 +20,7 @@ Actions, npm.
 
 - Work directly on `master`.
 - Keep the public GELF wire names and method signatures unchanged.
-- Keep UDP framing, compression, chunking, and DSN parsing outside this patch.
+- Keep UDP framing, compression, chunking, and DSN syntax unchanged.
 - Make TCP messages uncompressed, non-chunked, and null-delimited.
 - Guarantee GELF `host` with an `app` value or system-hostname fallback.
 - Write public documentation and examples in English.
@@ -44,7 +44,7 @@ Actions, npm.
 - Produces: merged defaults where call-specific data wins, plus a promise from
   `Client.info()`.
 
-- [ ] **Step 1: Add failing defaults, clone, info, and timestamp assertions**
+- [x] **Step 1: Add failing defaults, clone, info, and timestamp assertions**
 
 Add a test that creates:
 
@@ -101,7 +101,7 @@ expect(result).toBeInstanceOf(Promise);
 await result;
 ```
 
-- [ ] **Step 2: Run the focused RED tests**
+- [x] **Step 2: Run the focused RED tests**
 
 Run:
 
@@ -112,7 +112,7 @@ bun test test/src/main.test.ts
 Expected: the defaults envelope lacks `host` and custom defaults, and the info
 test receives `undefined` instead of a promise.
 
-- [ ] **Step 3: Merge defaults in send and return from info**
+- [x] **Step 3: Merge defaults in send and return from info**
 
 In `Client.send()`, destructure from a merged value:
 
@@ -131,7 +131,7 @@ public info(data: Exclude<IMessage, "level"> & IMessageRest) {
 }
 ```
 
-- [ ] **Step 4: Run the GREEN client checks**
+- [x] **Step 4: Run the GREEN client checks**
 
 Run:
 
@@ -142,19 +142,21 @@ bun run test:typecheck
 
 Expected: all client tests and TypeScript checks pass.
 
-- [ ] **Step 5: Commit the client fix**
+- [x] **Step 5: Commit the client fix**
 
 ```bash
 git add src/Client.ts test/src/main.test.ts
 git commit -m "fix: apply client message defaults"
 ```
 
-### Task 2: Enforce GELF severity, host, and TCP framing
+### Task 2: Enforce GELF payload, TCP framing, and error contracts
 
 **Files:**
 
 - Modify: `src/Client.ts`
+- Modify: `src/TransportAbstract.ts`
 - Modify: `src/Transport/TCPTransport.ts`
+- Modify: `src/config.ts`
 - Modify: `test/src/main.test.ts`
 - Create: `test/src/tcp.test.ts`
 
@@ -162,10 +164,10 @@ git commit -m "fix: apply client message defaults"
 
 - Consumes: `Level.EMERGENCY`, `Client.send()`, `TCPTransport`, and Node's
   system hostname.
-- Produces: required `host`, preserved level zero, and one null-delimited JSON
-  frame per TCP send.
+- Produces: required `host`, preserved level zero, ports in `1..65535`, one
+  null-delimited JSON frame per TCP send, and async JSON encoding errors.
 
-- [ ] **Step 1: Add RED tests for emergency level and host fallback**
+- [x] **Step 1: Add RED tests for emergency level, host fallback, and ports**
 
 Add a client test that sends both:
 
@@ -182,16 +184,18 @@ Create a client without `app`, send a message, and assert:
 expect(payload.host).toBe(hostname());
 ```
 
+Assert that `tcp://localhost:65535` preserves port `65535`.
+
 Run:
 
 ```bash
 bun test test/src/main.test.ts
 ```
 
-Expected: emergency messages contain level `6`, and messages without `app`
-omit `host`.
+Expected: emergency messages contain level `6`, messages without `app` omit
+`host`, and port `65535` falls back to `12201`.
 
-- [ ] **Step 2: Preserve zero and add the host fallback**
+- [x] **Step 2: Preserve zero, add the host fallback, and accept valid ports**
 
 Import `hostname` from `node:os`. Build the envelope with:
 
@@ -199,6 +203,8 @@ Import `hostname` from `node:os`. Build the envelope with:
 host: app || hostname(),
 level: level ?? Level.INFO,
 ```
+
+Parse explicit ports in the range `1..65535`.
 
 Run:
 
@@ -209,7 +215,7 @@ bun run test:typecheck
 
 Expected: all client tests pass.
 
-- [ ] **Step 3: Add RED integration tests for TCP framing**
+- [x] **Step 3: Add RED integration tests for TCP framing**
 
 Use `node:net` to start a local TCP server on `127.0.0.1` with port `0`.
 Collect bytes until the expected number of `0x00` delimiters arrives.
@@ -230,7 +236,7 @@ bun test test/src/tcp.test.ts
 Expected: current TCP writes have no null delimiters; the large payload may use
 UDP chunk headers.
 
-- [ ] **Step 4: Bypass UDP serialization for TCP**
+- [x] **Step 4: Bypass UDP serialization for TCP**
 
 Override `enqueue()` in `TCPTransport`:
 
@@ -251,10 +257,37 @@ bun run test:typecheck
 
 Expected: the TCP tests and complete Bun suite pass.
 
-- [ ] **Step 5: Commit GELF compliance fixes**
+- [x] **Step 5: Keep JSON encoding inside the async error boundary**
+
+Add a RED test that sends a `BigInt` custom field. Assert that `send()` returns
+a promise, emits a `TypeError` through `transport.error`, and writes no bytes.
+
+Make `TransportAbstract.send()` async:
+
+```typescript
+public async send(data: object) {
+    try {
+        await this.enqueue(Buffer.from(JSON.stringify(data), "utf-8"));
+    } catch (error) {
+        this.emit("error", error);
+    }
+}
+```
+
+Run:
 
 ```bash
-git add src/Client.ts src/Transport/TCPTransport.ts test/src/main.test.ts test/src/tcp.test.ts
+bun test test/src/main.test.ts --test-name-pattern "JSON encoding"
+bun run test:typecheck
+bun test
+```
+
+Expected: the error-contract regression and complete suite pass.
+
+- [x] **Step 6: Commit GELF compliance fixes**
+
+```bash
+git add src/Client.ts src/TransportAbstract.ts src/Transport/TCPTransport.ts src/config.ts test/src/main.test.ts test/src/tcp.test.ts test/src/__snapshots__/main.test.ts.snap
 git commit -m "fix: conform payloads to GELF 1.1"
 ```
 
@@ -274,7 +307,7 @@ git commit -m "fix: conform payloads to GELF 1.1"
 - Produces: `bun run examples:typecheck` and three copyable examples that use
   `import ... from "gelf-client"`.
 
-- [ ] **Step 1: Add the example TypeScript project**
+- [x] **Step 1: Add the example TypeScript project**
 
 Create `examples/tsconfig.json`:
 
@@ -295,7 +328,7 @@ Create `examples/tsconfig.json`:
 }
 ```
 
-- [ ] **Step 2: Add UDP, TCP, and context examples**
+- [x] **Step 2: Add UDP, TCP, and context examples**
 
 Create `examples/udp.ts`:
 
@@ -366,7 +399,7 @@ try {
 }
 ```
 
-- [ ] **Step 3: Add the example type-check script**
+- [x] **Step 3: Add the example type-check script**
 
 Add:
 
@@ -380,7 +413,7 @@ Run it from `check` after `test:typecheck`:
 "check": "bun run fmt:check && bun run lint && bun run test:typecheck && bun run examples:typecheck && bun run test && bun run build && bun run test:package"
 ```
 
-- [ ] **Step 4: Format and type-check the examples**
+- [x] **Step 4: Format and type-check the examples**
 
 Run:
 
@@ -392,7 +425,7 @@ bun run lint
 
 Expected: all three examples compile and lint without diagnostics.
 
-- [ ] **Step 5: Commit the examples**
+- [x] **Step 5: Commit the examples**
 
 ```bash
 git add examples package.json
@@ -411,7 +444,7 @@ git commit -m "docs: add checked GELF client examples"
 - Produces: npm-rendered documentation with copyable commands and public API
   guidance.
 
-- [ ] **Step 1: Replace installation and quick-start content**
+- [x] **Step 1: Replace installation and quick-start content**
 
 Show these alternatives:
 
@@ -432,7 +465,7 @@ The shown GELF JSON must match the example: `host` is `checkout-api`,
 `_user_id` is `42`, `_request_id` is the generated UUID, and `level` is `6`
 for `Level.INFO`.
 
-- [ ] **Step 2: Document transports, context, API, and DSN options**
+- [x] **Step 2: Document transports, context, API, and DSN options**
 
 Add:
 
@@ -447,7 +480,7 @@ Add:
 - `compress` and `strict` flag descriptions;
 - transport error-listener and shutdown guidance.
 
-- [ ] **Step 3: Document repository commands**
+- [x] **Step 3: Document repository commands**
 
 List:
 
@@ -464,7 +497,7 @@ bun run check
 State that `bun run check` runs formatting, lint, source and example
 type-checking, tests, build, and packed-consumer validation.
 
-- [ ] **Step 4: Proofread and validate README claims**
+- [x] **Step 4: Proofread and validate README claims**
 
 Run:
 
@@ -476,7 +509,7 @@ rg -n "uuid\\(\\)|1440|send these json|See type definitions" README.md
 
 Expected: formatting passes and the search returns no stale documentation.
 
-- [ ] **Step 5: Commit the README**
+- [x] **Step 5: Commit the README**
 
 ```bash
 git add README.md
@@ -488,7 +521,7 @@ git commit -m "docs: rewrite usage and API guide"
 **Files:**
 
 - Modify: `package.json`
-- Modify: `bun.lock`
+- Inspect: `bun.lock`
 - Modify:
   `docs/superpowers/plans/2026-07-28-documentation-and-release.md`
 
@@ -497,7 +530,7 @@ git commit -m "docs: rewrite usage and API guide"
 - Consumes: the green local repository and tag-triggered Publish workflow.
 - Produces: Git tag `v0.1.12` and npm package `gelf-client@0.1.12`.
 
-- [ ] **Step 1: Update package version and lockfile**
+- [x] **Step 1: Update package version and inspect the lockfile**
 
 Change the root package version from `0.1.11` to `0.1.12`, then run:
 
@@ -506,10 +539,11 @@ bun install
 bun ci
 ```
 
-Expected: `package.json` and `bun.lock` agree on version `0.1.12`, and the
-frozen install passes.
+Expected: `package.json` reports `0.1.12`. Bun may leave `bun.lock` unchanged
+because its workspace entry does not store the package version. The frozen
+install must pass.
 
-- [ ] **Step 2: Run the release verification matrix**
+- [x] **Step 2: Run the release verification matrix**
 
 Run:
 
@@ -521,16 +555,16 @@ git diff --check
 git status --short --branch
 ```
 
-Expected: five original tests plus the new regressions pass, examples
-type-check, the tarball contains `dist`, `README.md`, and `LICENSE`, both
-workflows parse, and only intended release files remain.
+Expected: all 14 Bun tests pass, examples type-check, the tarball contains
+`dist`, `README.md`, and `LICENSE`, both workflows parse, and only intended
+release files remain.
 
-- [ ] **Step 3: Mark this plan complete and commit the release**
+- [x] **Step 3: Commit the local release state**
 
-Change each plan checkbox to `[x]`, then run:
+Commit the version and completed local checklist:
 
 ```bash
-git add package.json bun.lock docs/superpowers/plans/2026-07-28-documentation-and-release.md
+git add package.json docs/superpowers/plans/2026-07-28-documentation-and-release.md
 git commit -m "release: prepare version 0.1.12"
 ```
 
@@ -556,14 +590,21 @@ git push origin v0.1.12
 
 Wait for the Publish workflow and require conclusion `success`.
 
-- [ ] **Step 6: Verify npm and repository state**
+- [ ] **Step 6: Verify npm and record publication**
 
 Run:
 
 ```bash
 bun pm view gelf-client version
+```
+
+Expected: npm reports `0.1.12`. Mark Steps 3 through 6 complete, then run:
+
+```bash
+git add docs/superpowers/plans/2026-07-28-documentation-and-release.md
+git commit -m "docs: record version 0.1.12 publication"
+git push origin master
 git status --short --branch
 ```
 
-Expected: npm reports `0.1.12`, `master` matches `origin/master`, and the
-working tree is clean.
+The final status must show a clean `master` matching `origin/master`.

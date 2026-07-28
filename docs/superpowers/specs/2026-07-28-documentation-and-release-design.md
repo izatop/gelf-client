@@ -15,11 +15,12 @@ This patch covers:
 - installation commands for npm, Bun, and Yarn;
 - three TypeScript examples under `examples/`;
 - regression fixes for message defaults and `Client.info()`;
-- GELF-compliant emergency severity, host fallback, and TCP framing;
+- GELF-compliant emergency severity, host fallback, TCP framing, and error
+  delivery;
 - stronger tests for timestamps and default-field behavior;
 - a patch release through the existing tag-driven publish workflow.
 
-The patch will not change UDP framing, compression, chunking, DSN parsing, or
+The patch will not change UDP framing, compression, chunking, DSN syntax, or
 the public method signatures.
 
 ## README Structure
@@ -73,7 +74,8 @@ keeps README-linked examples aligned with the public TypeScript API.
 ### Defaults and Clone
 
 `Client.factory(dsn, defaults)` stores defaults, and `clone(defaults)` merges
-new defaults with the existing set. `send(data)` ignores both sets.
+new defaults with the existing set. Before this patch, `send(data)` ignored
+both sets.
 
 `send()` will merge `this.defaults` first and call-specific `data` second.
 Call-specific values win. The method will use the merged object for standard
@@ -97,6 +99,9 @@ payload.
 `Level.EMERGENCY` has numeric value `0`. `send()` will use nullish fallback for
 the default info level so it preserves severity zero.
 
+Connection strings will accept every valid TCP and UDP port from `1` through
+`65535`. Invalid and omitted ports will retain the `12201` fallback.
+
 ### TCP Framing
 
 GELF TCP accepts one uncompressed, non-chunked JSON payload followed by a null
@@ -104,6 +109,14 @@ byte. `TCPTransport` will bypass the UDP serializer and write
 `JSON bytes + 0x00` for each message. Multiple calls will produce separate
 null-delimited frames on the same socket, including payloads larger than the
 UDP chunk threshold.
+
+### Transport Error Contract
+
+`TransportAbstract.send()` will keep JSON encoding inside its async error
+boundary. Circular objects, `BigInt`, and other encoding failures will emit the
+transport's `error` event and resolve the returned promise without writing a
+partial payload. This matches the existing serializer and socket error
+delivery model.
 
 ## Tests
 
@@ -116,7 +129,9 @@ The Bun suite will prove:
 - `info()` returns the transport send promise;
 - explicit and helper-based emergency messages preserve level `0`;
 - messages without `app` use the system hostname;
+- explicit ports through `65535` survive DSN parsing;
 - TCP emits one null-delimited frame per small or large message;
+- JSON encoding failures emit `transport.error` and return a promise;
 - timestamps use seconds and stay within the test's start and end bounds.
 
 The current strict-field, UDP serialization, and chunk tests remain. Client
