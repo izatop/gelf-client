@@ -31,7 +31,7 @@
 - Consumes: Git tag pushes matching `v*`, or a manual `workflow_dispatch` string input named `ref`.
 - Produces: A checked package published by `npm publish` with a GitHub OIDC identity token.
 
-- [ ] **Step 1: Run a failing workflow-contract check**
+- [x] **Step 1: Run a failing workflow-contract check**
 
 Run:
 
@@ -55,7 +55,7 @@ ruby -e '
 Expected: FAIL and report the missing OIDC entries plus the current token and
 `bun publish` references.
 
-- [ ] **Step 2: Replace the workflow with the OIDC design**
+- [x] **Step 2: Replace the workflow with the OIDC design**
 
 Set `.github/workflows/publish.yml` to:
 
@@ -95,23 +95,23 @@ jobs:
             - run: npm publish
 ```
 
-- [ ] **Step 3: Run the workflow-contract check again**
+- [x] **Step 3: Run the workflow-contract check again**
 
 Run the Ruby command from Step 1.
 
 Expected: exit code 0 with no output.
 
-- [ ] **Step 4: Parse the workflow as YAML**
+- [x] **Step 4: Parse the workflow as YAML**
 
 Run:
 
 ```bash
-ruby -e 'require "yaml"; YAML.load_file(".github/workflows/publish.yml", aliases: true)'
+ruby -e 'require "yaml"; YAML.load_file(".github/workflows/publish.yml")'
 ```
 
 Expected: exit code 0.
 
-- [ ] **Step 5: Commit the workflow change**
+- [x] **Step 5: Commit the workflow change**
 
 ```bash
 git add .github/workflows/publish.yml
@@ -169,7 +169,7 @@ Expected: package version `0.1.12`, 33 files, and generated declarations under
 Run:
 
 ```bash
-ruby -e 'require "yaml"; Dir[".github/workflows/*.{yml,yaml}"].each { |path| YAML.load_file(path, aliases: true) }'
+ruby -e 'require "yaml"; Dir[".github/workflows/*.{yml,yaml}"].each { |path| YAML.load_file(path) }'
 git diff --check HEAD^
 git status --short --branch
 ```
