@@ -4,7 +4,7 @@
 
 **Goal:** Publish the existing `gelf-client@0.1.12` release through npm Trusted Publishing without a long-lived npm token.
 
-**Architecture:** GitHub Actions will keep Bun for installation and repository checks, then use Node 24 and the npm CLI for the OIDC-authenticated publish step. A manual `ref` input will let the current workflow definition publish the unchanged `v0.1.12` tag.
+**Architecture:** GitHub Actions will keep Bun for installation and repository checks, then use Node 24 and the npm CLI for the OIDC-authenticated publish step. A manual `tag` input will let the current workflow definition publish the unchanged `v0.1.12` tag without accepting a branch or commit SHA.
 
 **Tech Stack:** GitHub Actions, Bun 1.3.14, Node.js 24, npm Trusted Publishing, OpenID Connect
 
@@ -17,6 +17,7 @@
 - Run on a GitHub-hosted `ubuntu-latest` runner.
 - Configure no GitHub Environment.
 - Publish `0.1.12`; do not create `0.1.13`.
+- Resolve manual recovery inputs under `refs/tags/` only.
 
 ---
 
@@ -28,7 +29,7 @@
 
 **Interfaces:**
 
-- Consumes: Git tag pushes matching `v*`, or a manual `workflow_dispatch` string input named `ref`.
+- Consumes: Git tag pushes matching `v*`, or a manual `workflow_dispatch` string input named `tag`.
 - Produces: A checked package published by `npm publish` with a GitHub OIDC identity token.
 
 - [x] **Step 1: Run a failing workflow-contract check**
@@ -41,11 +42,12 @@ ruby -e '
   required = [
     "workflow_dispatch:",
     "id-token: write",
-    "actions/setup-node@",
+    "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
     "node-version: 24",
-    "npm publish"
+    "npm publish",
+    "format('refs/tags/{0}', inputs.tag)"
   ]
-  forbidden = ["NPM_TOKEN", "NPM_CONFIG_TOKEN", "bun publish"]
+  forbidden = ["NPM_TOKEN", "NPM_CONFIG_TOKEN", "bun publish", "inputs.ref"]
   missing = required.reject { |item| text.include?(item) }
   present = forbidden.select { |item| text.include?(item) }
   abort "missing=#{missing.inspect} forbidden=#{present.inspect}" unless missing.empty? && present.empty?
@@ -68,7 +70,7 @@ on:
             - "v*"
     workflow_dispatch:
         inputs:
-            ref:
+            tag:
                 description: "Tag to publish, for example v0.1.12"
                 required: true
                 type: string
@@ -83,9 +85,9 @@ jobs:
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
-                  ref: ${{ inputs.ref || github.ref }}
+                  ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
             - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-            - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
               with:
                   node-version: 24
                   registry-url: "https://registry.npmjs.org"
@@ -132,7 +134,7 @@ git commit -m "ci: publish to npm with OIDC"
 - Consumes: The OIDC workflow from Task 1.
 - Produces: Local evidence that code checks and package construction remain unchanged.
 
-- [ ] **Step 1: Install the locked dependencies**
+- [x] **Step 1: Install the locked dependencies**
 
 Run:
 
@@ -142,7 +144,7 @@ bun ci
 
 Expected: exit code 0 and Bun 1.3.14 dependencies installed from `bun.lock`.
 
-- [ ] **Step 2: Run the complete repository check**
+- [x] **Step 2: Run the complete repository check**
 
 Run:
 
@@ -153,7 +155,7 @@ bun run check
 Expected: formatting, oxlint, TypeScript checks, 14 Bun tests, build, and the
 package-consumer test all pass.
 
-- [ ] **Step 3: Inspect the package without publishing**
+- [x] **Step 3: Inspect the package without publishing**
 
 Run:
 
@@ -164,7 +166,7 @@ bun pm pack --dry-run
 Expected: package version `0.1.12`, 33 files, and generated declarations under
 `dist/`.
 
-- [ ] **Step 4: Parse every workflow and check the diff**
+- [x] **Step 4: Parse every workflow and check the diff**
 
 Run:
 
@@ -219,14 +221,14 @@ Expected: npm lists GitHub Actions as the package's single trusted publisher.
 Run the `Publish` workflow from the `master` branch with:
 
 ```text
-ref: v0.1.12
+tag: v0.1.12
 ```
 
 The equivalent GitHub API request is:
 
 ```text
 POST /repos/izatop/gelf-client/actions/workflows/publish.yml/dispatches
-{"ref":"master","inputs":{"ref":"v0.1.12"}}
+{"ref":"master","inputs":{"tag":"v0.1.12"}}
 ```
 
 Expected: checkout resolves `v0.1.12`, Bun checks pass, and `npm publish`

@@ -34,15 +34,16 @@ The workflow will add:
 - `permissions.id-token: write` so GitHub can mint an OIDC identity token;
 - `actions/setup-node` with Node 24 and the public npm registry;
 - `npm publish` as the only publication command;
-- a `workflow_dispatch` input named `ref` for recovery of an existing tag.
+- a `workflow_dispatch` input named `tag` for recovery of an existing tag.
 
 The workflow will remove `NPM_CONFIG_TOKEN` and all references to
 `secrets.NPM_TOKEN`.
 
 On tag pushes, checkout will use `github.ref`. On a manual run, checkout will
-use the required `ref` input. The recovery run will pass `v0.1.12`, so the
-workflow publishes the package contents already associated with that tag while
-executing the current `publish.yml` definition from `master`.
+build `refs/tags/<tag>` from the required `tag` input. The recovery run will
+pass `v0.1.12`, so the workflow publishes the package contents already
+associated with that tag while executing the current `publish.yml` definition
+from `master`. A manual run cannot select a branch or commit SHA.
 
 The workflow will continue to run on GitHub-hosted `ubuntu-latest` runners.
 
@@ -73,7 +74,7 @@ After the workflow change reaches `master` and the npm Trusted Publisher is
 configured:
 
 1. dispatch the Publish workflow from `master`;
-2. set `ref` to `v0.1.12`;
+2. set `tag` to `v0.1.12`;
 3. wait for `bun run check` and `npm publish`;
 4. confirm that npm reports `gelf-client@0.1.12`.
 
@@ -111,7 +112,7 @@ identifiers:
 - repository: `gelf-client`;
 - workflow filename: `publish.yml`;
 - environment: unset;
-- requested ref: `v0.1.12`.
+- requested tag: `v0.1.12`.
 
 The job must retain `id-token: write`, run on a GitHub-hosted runner, and use a
 Trusted Publishing-capable npm CLI. `npm whoami` is not an OIDC diagnostic
