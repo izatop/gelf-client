@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to publish, for example v0.1.12"
+        description: "Tag to publish, for example v0.1.13"
         required: true
         type: string
 
@@ -30,4 +30,6 @@ jobs:
           package-manager-cache: false
       - run: bun ci
       - run: bun run check
-      - run: npm publish
+      - name: Normalize package metadata
+        run: npm pkg fix
+      - run: npm publish --provenance

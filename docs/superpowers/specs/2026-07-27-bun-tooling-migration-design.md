@@ -67,12 +67,14 @@ TypeScript project will resolve `bun:test` types from `@types/bun`.
 `check` will run formatting, lint, test type-checking, tests, the build, and the
 packed-package consumer check in that order.
 
-`@types/jest` will be removed. `@types/bun` is a development dependency.
-`@types/node` is a runtime dependency because the public declarations expose
-Node's `Buffer` and `EventEmitter` types. The generated entry declaration
-preserves an explicit Node type reference so that TypeScript 7 consumers load
-those ambient declarations despite its new empty `types` default. `bun install`
-will update `bun.lock` after the manifest changes.
+`@types/jest` will be removed. `@types/bun` and `@types/node` are development
+dependencies. The public declarations expose Node's `Buffer` and `EventEmitter`
+types, so Node-targeted consumers are expected to provide Node type declarations.
+The package-consumer check provides them explicitly before compiling the packed
+package. The generated entry declaration preserves an explicit Node type
+reference so that TypeScript 7 loads those ambient declarations despite its new
+empty `types` default. `bun install` will update `bun.lock` after the manifest
+changes.
 
 ## TypeScript 7 Migration
 

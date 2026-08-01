@@ -38,8 +38,13 @@ const main = async () => {
         const packedPackageJson = JSON.parse(
             await readFile(join(installedPackageDirectory, "package.json"), "utf8"),
         );
-        if (typeof packedPackageJson.dependencies?.["@types/node"] !== "string") {
-            throw new Error("The published package must depend on @types/node");
+        if (packedPackageJson.dependencies?.["@types/node"] !== undefined) {
+            throw new Error("The published package must not depend on @types/node at runtime");
+        }
+        if (typeof packedPackageJson.devDependencies?.["@types/node"] !== "string") {
+            throw new Error(
+                "The published package must keep @types/node as a development dependency",
+            );
         }
 
         await mkdir(join(nodeModulesDirectory, "@types"), { recursive: true });

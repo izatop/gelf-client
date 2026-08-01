@@ -1,5 +1,10 @@
 # npm Trusted Publishing Implementation Plan
 
+> **Status update (2026-08-01):** The `v0.1.12` recovery described below was
+> superseded after the failed publish exposed non-canonical repository metadata
+> and the package dependency classification changed. The tag remains unchanged
+> and unpublished. The corrected package will be released as `v0.1.13`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Publish the existing `gelf-client@0.1.12` release through npm Trusted Publishing without a long-lived npm token.

@@ -1,6 +1,6 @@
 {
     "name": "gelf-client",
-    "version": "0.1.12",
+    "version": "0.1.13",
     "description": "GELF Client for Node.js written in TypeScript.",
     "keywords": [
         "gelf",
@@ -14,7 +14,10 @@
     ],
     "license": "MIT",
     "author": "izatop@gmail.com",
-    "repository": "https://github.com/izatop/gelf-client",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/izatop/gelf-client.git"
+    },
     "files": [
         "dist",
         "README.md",
@@ -39,11 +42,9 @@
         "check": "bun run fmt:check && bun run lint && bun run test:typecheck && bun run examples:typecheck && bun run test && bun run build && bun run test:package",
         "postversion": "git push --tags && git push"
     },
-    "dependencies": {
-        "@types/node": "^26.1.1"
-    },
     "devDependencies": {
         "@types/bun": "^1.3.14",
+        "@types/node": "^26.1.1",
         "oxfmt": "^0.60.0",
         "oxlint": "^1.75.0",
         "rimraf": "^6.1.3",

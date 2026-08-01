@@ -1,5 +1,10 @@
 # npm Trusted Publishing Design
 
+> **Status update (2026-08-01):** The `v0.1.12` recovery described below was
+> superseded after the failed publish exposed non-canonical repository metadata
+> and the package dependency classification changed. The tag remains unchanged
+> and unpublished. The corrected package will be released as `v0.1.13`.
+
 ## Goal
 
 Publish `gelf-client` from GitHub Actions through npm Trusted Publishing. The

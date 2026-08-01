@@ -177,20 +177,13 @@ Use this script map in `package.json`:
 }
 ```
 
-Keep Node types as a runtime dependency because the published declarations
-expose `Buffer` and `EventEmitter`:
-
-```json
-"dependencies": {
-  "@types/node": "^26.1.1"
-}
-```
-
-Use this development dependency section:
+Keep Node types in the development dependency section. The package targets Node,
+so consumers are expected to provide compatible Node type declarations:
 
 ```json
 "devDependencies": {
   "@types/bun": "^1.3.14",
+  "@types/node": "^26.1.1",
   "oxfmt": "^0.60.0",
   "oxlint": "^1.75.0",
   "rimraf": "^6.1.3",
