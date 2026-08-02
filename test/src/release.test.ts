@@ -132,6 +132,20 @@ describe("prepareRelease", () => {
         ).rejects.toThrow("Release versioning changed files other than package.json");
     });
 
+    test("rejects a lifecycle that stages an extra tracked change", async () => {
+        const repository = await createRepository({
+            versionScript:
+                `bun -e "await Bun.write('README.md', 'changed\\n'); ` +
+                `const child = Bun.spawn(['git', 'add', 'README.md']); await child.exited"`,
+        });
+
+        await expect(
+            prepareRelease({ ...repository, bump: "patch", lookupVersion: missing }),
+        ).rejects.toThrow("Release versioning changed files other than package.json");
+        expect(await command(repository.cwd, "git", "rev-parse", "HEAD")).toBe(repository.baseSha);
+        expect(await command(repository.cwd, "git", "tag", "--list", "v1.2.4")).toBe("");
+    });
+
     test("rejects an npm version without a matching tag", async () => {
         const repository = await createRepository();
         await expect(
@@ -165,6 +179,22 @@ describe("prepareRelease", () => {
         await expect(
             prepareRelease({ ...repository, bump: "patch", lookupVersion: missing }),
         ).rejects.toThrow("v1.2.4 does not contain package version 1.2.4");
+    });
+
+    test("rejects a matching lightweight retry tag", async () => {
+        const repository = await createRepository();
+        const prepared = await prepareRelease({
+            ...repository,
+            bump: "patch",
+            lookupVersion: missing,
+        });
+        await command(repository.cwd, "git", "tag", "-d", prepared.tag);
+        await command(repository.cwd, "git", "tag", prepared.tag);
+        await command(repository.cwd, "git", "checkout", "--detach", repository.baseSha);
+
+        await expect(
+            prepareRelease({ ...repository, bump: "patch", lookupVersion: missing }),
+        ).rejects.toThrow("v1.2.4 must be an annotated release tag");
     });
 
     test("reports checked command failures with the command and stderr", async () => {

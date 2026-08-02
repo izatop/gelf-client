@@ -105,7 +105,7 @@ const readReleasePackageFromDirectory = async (cwd: string) =>
     readReleasePackage(await readFile(join(cwd, "package.json"), "utf8"));
 
 const assertOnlyPackageJsonChanged = async (runner: CommandRunner, cwd: string) => {
-    const changed = (await checked(runner, ["git", "diff", "--name-only"], cwd))
+    const changed = (await checked(runner, ["git", "diff", "--name-only", "HEAD"], cwd))
         .split("\n")
         .filter(Boolean);
     assert(
@@ -167,6 +167,10 @@ export const prepareRelease = async ({
         return { action: "create", ...releasePackage, tag };
     }
 
+    assert(
+        (await checked(runner, ["git", "cat-file", "-t", `refs/tags/${tag}`], cwd)) === "tag",
+        `${tag} must be an annotated release tag`,
+    );
     const tagParent = await optionalGitCommit(runner, cwd, `${tag}^{commit}^`);
     assert(tagParent === baseSha, `${tag} is not a release commit based on the workflow SHA`);
     const taggedPackage = await readReleasePackageAt(runner, cwd, `${tag}:package.json`);
