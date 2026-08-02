@@ -46,7 +46,7 @@
 **Interfaces:**
 
 - Consumes: Git CLI, `bun pm version`, `npm view`, a repository path, `Bump`, and an event base SHA.
-- Produces: `prepareRelease(options): Promise<PreparedRelease>` and `inspectRelease(options): Promise<InspectedRelease>` for the CLI and workflow.
+- Produces: `prepareRelease(options): Promise<PreparedRelease>`, `pushRelease(options): Promise<void>`, and `inspectRelease(options): Promise<InspectedRelease>` for the CLI and workflow.
 
 - [ ] **Step 1: Add failing public-contract tests**
 
@@ -56,13 +56,14 @@ base commit at version `1.2.3`:
 
 ```ts
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
     inspectRelease,
     lookupNpmVersion,
     prepareRelease,
+    pushRelease,
     type RegistryLookup,
 } from "../../scripts/release";
 
@@ -227,6 +228,65 @@ describe("inspectRelease", () => {
         ).rejects.toThrow(message);
     });
 });
+
+describe("pushRelease", () => {
+    test("pushes main and the release tag to a bare remote", async () => {
+        const repository = await createRepository();
+        const remote = await mkdtemp(join(tmpdir(), "gelf-release-remote-"));
+        directories.push(remote);
+        await command(remote, "git", "init", "--bare", "--initial-branch=main");
+        await command(repository.cwd, "git", "remote", "add", "origin", remote);
+        await command(
+            repository.cwd,
+            "git",
+            "push",
+            "origin",
+            `${repository.baseSha}:refs/heads/main`,
+        );
+        const prepared = await prepareRelease({
+            ...repository,
+            bump: "patch",
+            lookupVersion: missing,
+        });
+
+        await pushRelease({ cwd: repository.cwd, tag: prepared.tag });
+
+        const remoteMain = await command(remote, "git", "rev-parse", "refs/heads/main");
+        const remoteTag = await command(remote, "git", "rev-parse", "refs/tags/v1.2.4^{commit}");
+        expect(remoteMain).toBe(remoteTag);
+    });
+
+    test("leaves main unchanged when the remote rejects the tag", async () => {
+        const repository = await createRepository();
+        const remote = await mkdtemp(join(tmpdir(), "gelf-release-remote-"));
+        directories.push(remote);
+        await command(remote, "git", "init", "--bare", "--initial-branch=main");
+        await command(repository.cwd, "git", "remote", "add", "origin", remote);
+        await command(
+            repository.cwd,
+            "git",
+            "push",
+            "origin",
+            `${repository.baseSha}:refs/heads/main`,
+        );
+        const hook = join(remote, "hooks", "pre-receive");
+        await writeFile(
+            hook,
+            '#!/bin/sh\nwhile read old new ref; do\n  case "$ref" in refs/tags/*) exit 1;; esac\ndone\n',
+        );
+        await chmod(hook, 0o755);
+        const prepared = await prepareRelease({
+            ...repository,
+            bump: "patch",
+            lookupVersion: missing,
+        });
+
+        await expect(pushRelease({ cwd: repository.cwd, tag: prepared.tag })).rejects.toThrow();
+        expect(await command(remote, "git", "rev-parse", "refs/heads/main")).toBe(
+            repository.baseSha,
+        );
+    });
+});
 ```
 
 Add a unit test for npm lookup exit handling. A `0` result means present, an
@@ -298,6 +358,13 @@ export interface InspectedRelease {
     tag: string;
     published: boolean;
 }
+```
+
+Export `pushRelease({ cwd, tag })`. It must validate the stable tag format and
+execute this argument vector through the checked command runner:
+
+```ts
+["git", "push", "--atomic", "origin", "HEAD:refs/heads/main", `refs/tags/${tag}`];
 ```
 
 Implement a default `CommandRunner` with `Bun.spawn`, captured output, and the
@@ -386,6 +453,7 @@ git commit -m "test: cover automated release state"
 
 - Create: `scripts/release-cli.ts`
 - Create: `test/src/publish-workflow.test.ts`
+- Modify: `test/src/release.test.ts`
 - Modify: `.github/workflows/publish.yml`
 - Modify: `bunfig.toml`
 - Modify: `package.json`
@@ -395,7 +463,7 @@ git commit -m "test: cover automated release state"
 - Consumes: `prepareRelease`, `inspectRelease`, GitHub's event SHA/ref, job output file, and job-scoped `GITHUB_TOKEN`.
 - Produces: prepare outputs `action`, `tag`, and `version`; publish output `published`; an automatic release workflow with an exact-tag publish gate.
 
-- [ ] **Step 1: Write failing workflow contract tests**
+- [ ] **Step 1: Write failing workflow and CLI contract tests**
 
 Create `test/src/publish-workflow.test.ts`:
 
@@ -420,8 +488,15 @@ interface PublishWorkflow {
     permissions: Record<string, never>;
     concurrency: { group: string; "cancel-in-progress": boolean };
     jobs: {
-        prepare: { permissions: Record<string, string> };
-        publish: { permissions: Record<string, string> };
+        prepare: {
+            if: string;
+            permissions: Record<string, string>;
+        };
+        publish: {
+            needs: string;
+            if: string;
+            permissions: Record<string, string>;
+        };
     };
 }
 
@@ -461,31 +536,38 @@ describe("Publish workflow", () => {
         });
     });
 
-    test("uses the release CLI and an atomic ref push", async () => {
-        const text = await Bun.file(".github/workflows/publish.yml").text();
-        expect(text).toContain('run: test "$RELEASE_REF" = "refs/heads/main"');
-        expect(text).toContain(
-            'bun scripts/release-cli.ts prepare "$RELEASE_BUMP" "$RELEASE_BASE_SHA"',
+    test("routes manual preparation into the publish job", () => {
+        expect(workflow.jobs.prepare.if).toBe("github.event_name == 'workflow_dispatch'");
+        expect(workflow.jobs.publish.needs).toBe("prepare");
+        expect(workflow.jobs.publish.if).toBe(
+            "always() && (github.event_name == 'push' || needs.prepare.result == 'success')",
         );
-        expect(text).toContain(
-            'git push --atomic origin "HEAD:refs/heads/main" "refs/tags/$RELEASE_TAG"',
-        );
-        expect(text).toContain('bun scripts/release-cli.ts inspect "$RELEASE_TAG"');
     });
 
-    test("audits the checked-out tag without mutating its manifest", async () => {
-        const text = await Bun.file(".github/workflows/publish.yml").text();
-        expect(text).toContain("run: bun audit");
-        expect(text).toContain("run: bun run check");
-        expect(text).toContain("run: npm publish --provenance");
-        expect(text).not.toContain("bun run security");
-        expect(text).not.toContain("npm pkg fix");
-        expect(text).not.toContain("NPM_TOKEN");
-        expect(text).not.toContain("NPM_CONFIG_TOKEN");
+    test("removes the push-on-version package hook", () => {
         expect(packageJson.scripts.postversion).toBeUndefined();
     });
 });
 ```
+
+The YAML tests guard parsed workflow invariants only. Do not assert exact
+`run:` strings or grep the workflow source. Task 1's temporary bare-remote
+tests prove the atomic Git behavior. Add subprocess tests to
+`test/src/release.test.ts` for the CLI adapter: start a local HTTP server that
+returns npm-compatible `404` responses, set `NPM_CONFIG_REGISTRY` to its URL,
+run `prepare` with a temporary `GITHUB_OUTPUT` file, and assert these literal
+outputs:
+
+```text
+action=create
+name=gelf-client
+version=1.2.4
+tag=v1.2.4
+```
+
+Run `inspect v1.2.4` from the created release commit and assert
+`published=false`. Run `push v1.2.4` against the temporary bare remote from
+Task 1 and assert that both remote refs resolve to the release commit.
 
 - [ ] **Step 2: Run the workflow test and confirm failure**
 
@@ -496,7 +578,8 @@ bun test test/src/publish-workflow.test.ts
 ```
 
 Expected: tests fail because the workflow still requires `tag`, has one job,
-uses `bun run security`, and `package.json` still defines `postversion`.
+and `package.json` still defines `postversion`. The CLI subprocess cases fail
+because `scripts/release-cli.ts` does not exist.
 
 - [ ] **Step 3: Add the CLI adapter**
 
@@ -505,14 +588,16 @@ commands:
 
 ```text
 bun scripts/release-cli.ts prepare <patch|minor|major> <base-sha>
+bun scripts/release-cli.ts push <v-semver-tag>
 bun scripts/release-cli.ts inspect <v-semver-tag>
 ```
 
 For `prepare`, call `prepareRelease({ cwd: process.cwd(), bump, baseSha })`. For
-`inspect`, call `inspectRelease({ cwd: process.cwd(), tag })`. Append every
-result property to the file at `process.env.GITHUB_OUTPUT` as `key=value`. Print
-the JSON result when that variable is absent. Catch errors, print the error
-message to stderr, and set `process.exitCode = 1`.
+`push`, call `pushRelease({ cwd: process.cwd(), tag })`. For `inspect`, call
+`inspectRelease({ cwd: process.cwd(), tag })`. Append every result property to
+the file at `process.env.GITHUB_OUTPUT` as `key=value`. Print the JSON result
+when that variable is absent. Catch errors, print the error message to stderr,
+and set `process.exitCode = 1`.
 
 Add the adapter path to `bunfig.toml` because the subprocess boundary contains
 no release decisions and cannot contribute coverage to the parent `bun test`
@@ -605,7 +690,7 @@ jobs:
               if: steps.release.outputs.action == 'create'
               env:
                   RELEASE_TAG: ${{ steps.release.outputs.tag }}
-              run: git push --atomic origin "HEAD:refs/heads/main" "refs/tags/$RELEASE_TAG"
+              run: bun scripts/release-cli.ts push "$RELEASE_TAG"
 
     publish:
         needs: prepare
@@ -675,6 +760,7 @@ git add \
   bunfig.toml \
   package.json \
   scripts/release-cli.ts \
+  test/src/release.test.ts \
   test/src/publish-workflow.test.ts
 git commit -m "ci: automate npm release versions"
 ```
