@@ -18,5 +18,5 @@
         "incremental": true,
         "noEmit": true
     },
-    "include": ["src", "test/src", "test/package-consumer.ts"]
+    "include": ["src", "scripts", "test/src", "test/package-consumer.ts"]
 }
