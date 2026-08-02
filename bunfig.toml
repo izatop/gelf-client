@@ -4,5 +4,5 @@ minimumReleaseAge = 259200
 [test]
 coverage = true
 coverageSkipTestFiles = true
-coveragePathIgnorePatterns = ["test/**"]
+coveragePathIgnorePatterns = ["test/**", "scripts/release-cli.ts"]
 coverageThreshold = { lines = 1, functions = 1, statements = 1 }

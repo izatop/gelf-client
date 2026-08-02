@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -11,6 +11,7 @@ import {
 } from "../../scripts/release";
 
 const directories: string[] = [];
+const releaseCli = join(process.cwd(), "scripts/release-cli.ts");
 
 const command = async (cwd: string, ...args: string[]) => {
     const child = Bun.spawn(args, { cwd, stdout: "pipe", stderr: "pipe" });
@@ -59,6 +60,90 @@ afterEach(async () => {
 
 const missing: RegistryLookup = async () => false;
 const present: RegistryLookup = async () => true;
+
+const runReleaseCli = async ({
+    cwd,
+    output,
+    registry,
+    args,
+}: {
+    cwd: string;
+    output?: string;
+    registry: string;
+    args: string[];
+}) => {
+    const child = Bun.spawn(["bun", releaseCli, ...args], {
+        cwd,
+        env: {
+            ...process.env,
+            NPM_CONFIG_REGISTRY: registry,
+            ...(output === undefined ? {} : { GITHUB_OUTPUT: output }),
+        },
+        stdout: "pipe",
+        stderr: "pipe",
+    });
+    const [exitCode, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+    ]);
+    if (exitCode !== 0) {
+        throw new Error(`release CLI ${args.join(" ")} failed: ${stderr}`);
+    }
+    return stdout.trim();
+};
+
+test("release CLI prepares, inspects, and pushes a release", async () => {
+    const repository = await createRepository();
+    const remote = await mkdtemp(join(tmpdir(), "gelf-release-remote-"));
+    directories.push(remote);
+    await command(remote, "git", "init", "--bare", "--initial-branch=main");
+    await command(repository.cwd, "git", "remote", "add", "origin", remote);
+    await command(repository.cwd, "git", "push", "origin", `${repository.baseSha}:refs/heads/main`);
+
+    const output = join(repository.cwd, "github-output");
+    await writeFile(output, "");
+    const registry = Bun.serve({
+        hostname: "127.0.0.1",
+        port: 0,
+        fetch: () => new Response("not found", { status: 404 }),
+    });
+
+    try {
+        await runReleaseCli({
+            cwd: repository.cwd,
+            output,
+            registry: registry.url.toString(),
+            args: ["prepare", "patch", repository.baseSha],
+        });
+        expect(await readFile(output, "utf8")).toBe(
+            "action=create\nname=gelf-client\nversion=1.2.4\ntag=v1.2.4\n",
+        );
+
+        await writeFile(output, "");
+        await runReleaseCli({
+            cwd: repository.cwd,
+            output,
+            registry: registry.url.toString(),
+            args: ["inspect", "v1.2.4"],
+        });
+        expect(await readFile(output, "utf8")).toContain("published=false\n");
+
+        await runReleaseCli({
+            cwd: repository.cwd,
+            registry: registry.url.toString(),
+            args: ["push", "v1.2.4"],
+        });
+    } finally {
+        registry.stop(true);
+    }
+
+    const releaseCommit = await command(repository.cwd, "git", "rev-parse", "v1.2.4^{commit}");
+    expect(await command(remote, "git", "rev-parse", "refs/heads/main")).toBe(releaseCommit);
+    expect(await command(remote, "git", "rev-parse", "refs/tags/v1.2.4^{commit}")).toBe(
+        releaseCommit,
+    );
+});
 
 describe("prepareRelease", () => {
     test.each([
