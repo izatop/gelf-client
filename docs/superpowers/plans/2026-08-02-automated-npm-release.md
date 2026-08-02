@@ -38,11 +38,13 @@
 ### Task 1: Tested Release State Engine
 
 **Files:**
+
 - Create: `scripts/release.ts`
 - Create: `test/src/release.test.ts`
 - Modify: `test/tsconfig.json`
 
 **Interfaces:**
+
 - Consumes: Git CLI, `bun pm version`, `npm view`, a repository path, `Bump`, and an event base SHA.
 - Produces: `prepareRelease(options): Promise<PreparedRelease>` and `inspectRelease(options): Promise<InspectedRelease>` for the CLI and workflow.
 
@@ -90,10 +92,7 @@ const createRepository = async (versionScript?: string) => {
         version: "1.2.3",
         ...(versionScript === undefined ? {} : { scripts: { version: versionScript } }),
     };
-    await writeFile(
-        join(cwd, "package.json"),
-        `${JSON.stringify(packageJson, null, 2)}\n`,
-    );
+    await writeFile(join(cwd, "package.json"), `${JSON.stringify(packageJson, null, 2)}\n`);
     if (versionScript !== undefined) {
         await writeFile(join(cwd, "README.md"), "original\n");
     }
@@ -122,19 +121,34 @@ describe("prepareRelease", () => {
         const repository = await createRepository();
         const result = await prepareRelease({ ...repository, bump, lookupVersion: missing });
 
-        expect(result).toEqual({ action: "create", name: "gelf-client", version, tag: `v${version}` });
-        expect(await command(repository.cwd, "git", "show", `${result.tag}:package.json`))
-            .toContain(`"version": "${version}"`);
-        expect(await command(repository.cwd, "git", "rev-parse", `${result.tag}^{commit}^`))
-            .toBe(repository.baseSha);
+        expect(result).toEqual({
+            action: "create",
+            name: "gelf-client",
+            version,
+            tag: `v${version}`,
+        });
+        expect(
+            await command(repository.cwd, "git", "show", `${result.tag}:package.json`),
+        ).toContain(`"version": "${version}"`);
+        expect(await command(repository.cwd, "git", "rev-parse", `${result.tag}^{commit}^`)).toBe(
+            repository.baseSha,
+        );
     });
 
     test("reuses the matching release tag on a full rerun", async () => {
         const repository = await createRepository();
-        const first = await prepareRelease({ ...repository, bump: "patch", lookupVersion: missing });
+        const first = await prepareRelease({
+            ...repository,
+            bump: "patch",
+            lookupVersion: missing,
+        });
         await command(repository.cwd, "git", "checkout", "--detach", repository.baseSha);
 
-        const retry = await prepareRelease({ ...repository, bump: "patch", lookupVersion: present });
+        const retry = await prepareRelease({
+            ...repository,
+            bump: "patch",
+            lookupVersion: present,
+        });
         expect(retry).toEqual({ ...first, action: "reuse" });
     });
 
@@ -152,7 +166,12 @@ describe("prepareRelease", () => {
     test("rejects a release from another HEAD", async () => {
         const repository = await createRepository();
         await expect(
-            prepareRelease({ ...repository, baseSha: "0".repeat(40), bump: "patch", lookupVersion: missing }),
+            prepareRelease({
+                ...repository,
+                baseSha: "0".repeat(40),
+                bump: "patch",
+                lookupVersion: missing,
+            }),
         ).rejects.toThrow("Release base does not match HEAD");
     });
 
@@ -184,9 +203,18 @@ describe("prepareRelease", () => {
 describe("inspectRelease", () => {
     test("returns whether npm already contains the checked-out tag", async () => {
         const repository = await createRepository();
-        const prepared = await prepareRelease({ ...repository, bump: "patch", lookupVersion: missing });
-        expect(await inspectRelease({ cwd: repository.cwd, tag: prepared.tag, lookupVersion: present }))
-            .toEqual({ name: "gelf-client", version: "1.2.4", tag: "v1.2.4", published: true });
+        const prepared = await prepareRelease({
+            ...repository,
+            bump: "patch",
+            lookupVersion: missing,
+        });
+        expect(
+            await inspectRelease({
+                cwd: repository.cwd,
+                tag: prepared.tag,
+                lookupVersion: present,
+            }),
+        ).toEqual({ name: "gelf-client", version: "1.2.4", tag: "v1.2.4", published: true });
     });
 
     test.each([
@@ -194,8 +222,9 @@ describe("inspectRelease", () => {
         ["v1.2.4", "Release tag v1.2.4 does not match package version 1.2.3"],
     ])("rejects invalid tag %s", async (tag, message) => {
         const repository = await createRepository();
-        await expect(inspectRelease({ cwd: repository.cwd, tag, lookupVersion: missing }))
-            .rejects.toThrow(message);
+        await expect(
+            inspectRelease({ cwd: repository.cwd, tag, lookupVersion: missing }),
+        ).rejects.toThrow(message);
     });
 });
 ```
@@ -205,11 +234,13 @@ Add a unit test for npm lookup exit handling. A `0` result means present, an
 
 ```ts
 test("distinguishes npm presence, absence, and registry failure", async () => {
-    const result = (exitCode: number, stdout = "", stderr = "") =>
+    const result =
+        (exitCode: number, stdout = "", stderr = "") =>
         async () => ({ exitCode, stdout, stderr });
     expect(await lookupNpmVersion("gelf-client", "1.2.4", result(0, '"1.2.4"'))).toBe(true);
-    expect(await lookupNpmVersion("gelf-client", "1.2.4", result(1, "", "npm error code E404")))
-        .toBe(false);
+    expect(
+        await lookupNpmVersion("gelf-client", "1.2.4", result(1, "", "npm error code E404")),
+    ).toBe(false);
     await expect(
         lookupNpmVersion("gelf-client", "1.2.4", result(1, "", "npm error code E500")),
     ).rejects.toThrow("Could not query npm for gelf-client@1.2.4");
@@ -273,7 +304,7 @@ Implement a default `CommandRunner` with `Bun.spawn`, captured output, and the
 caller's environment. `lookupNpmVersion` must execute this exact command:
 
 ```ts
-["npm", "view", `${name}@${version}`, "version", "--json"]
+["npm", "view", `${name}@${version}`, "version", "--json"];
 ```
 
 It returns `true` for exit code `0`, returns `false` only when stderr contains
@@ -283,7 +314,7 @@ It returns `true` for exit code `0`, returns `false` only when stderr contains
 
 ```ts
 assertBump(options.bump);
-assert(await git("rev-parse", "HEAD") === options.baseSha, "Release base does not match HEAD");
+assert((await git("rev-parse", "HEAD")) === options.baseSha, "Release base does not match HEAD");
 await checked(["bun", "pm", "version", options.bump, "--no-git-tag-version"]);
 const { name, version } = await readReleasePackage(options.cwd);
 const tag = `v${version}`;
@@ -308,7 +339,7 @@ and require both the expected version and `options.baseSha`. Return
 version outside this pattern:
 
 ```ts
-/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/
+/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 ```
 
 `inspectRelease` must validate the same package contract, require an exact
@@ -321,13 +352,13 @@ Extend `test/src/release.test.ts` until every executable line and exported
 function in `scripts/release.ts` runs. Add these cases with the exact expected
 messages:
 
-| Setup | Expected message |
-| --- | --- |
-| Package name is `other-package` | `Release package must be gelf-client` |
-| Package version is `1.2.3-beta.1` | `Release package version must be stable semver` |
-| Existing retry tag contains a different version | `v1.2.4 does not contain package version 1.2.4` |
-| Checkout HEAD differs from the supplied publish tag | `Checked-out commit does not match v1.2.4` |
-| A child process exits nonzero in a checked command | Include the command and stderr in the thrown error |
+| Setup                                               | Expected message                                   |
+| --------------------------------------------------- | -------------------------------------------------- |
+| Package name is `other-package`                     | `Release package must be gelf-client`              |
+| Package version is `1.2.3-beta.1`                   | `Release package version must be stable semver`    |
+| Existing retry tag contains a different version     | `v1.2.4 does not contain package version 1.2.4`    |
+| Checkout HEAD differs from the supplied publish tag | `Checked-out commit does not match v1.2.4`         |
+| A child process exits nonzero in a checked command  | Include the command and stderr in the thrown error |
 
 - [ ] **Step 6: Run focused verification**
 
@@ -352,6 +383,7 @@ git commit -m "test: cover automated release state"
 ### Task 2: Automatic Publish Workflow
 
 **Files:**
+
 - Create: `scripts/release-cli.ts`
 - Create: `test/src/publish-workflow.test.ts`
 - Modify: `.github/workflows/publish.yml`
@@ -359,6 +391,7 @@ git commit -m "test: cover automated release state"
 - Modify: `package.json`
 
 **Interfaces:**
+
 - Consumes: `prepareRelease`, `inspectRelease`, GitHub's event SHA/ref, job output file, and job-scoped `GITHUB_TOKEN`.
 - Produces: prepare outputs `action`, `tag`, and `version`; publish output `published`; an automatic release workflow with an exact-tag publish gate.
 
@@ -373,12 +406,15 @@ interface PublishWorkflow {
     on: {
         push: { tags: string[] };
         workflow_dispatch: {
-            inputs: Record<string, {
-                required: boolean;
-                default: string;
-                type: string;
-                options: string[];
-            }>;
+            inputs: Record<
+                string,
+                {
+                    required: boolean;
+                    default: string;
+                    type: string;
+                    options: string[];
+                }
+            >;
         };
     };
     permissions: Record<string, never>;
@@ -392,7 +428,7 @@ interface PublishWorkflow {
 const workflow = Bun.YAML.parse(
     await Bun.file(".github/workflows/publish.yml").text(),
 ) as PublishWorkflow;
-const packageJson = await Bun.file("package.json").json() as {
+const packageJson = (await Bun.file("package.json").json()) as {
     scripts: Record<string, string>;
 };
 
@@ -428,8 +464,12 @@ describe("Publish workflow", () => {
     test("uses the release CLI and an atomic ref push", async () => {
         const text = await Bun.file(".github/workflows/publish.yml").text();
         expect(text).toContain('run: test "$RELEASE_REF" = "refs/heads/main"');
-        expect(text).toContain('bun scripts/release-cli.ts prepare "$RELEASE_BUMP" "$RELEASE_BASE_SHA"');
-        expect(text).toContain('git push --atomic origin "HEAD:refs/heads/main" "refs/tags/$RELEASE_TAG"');
+        expect(text).toContain(
+            'bun scripts/release-cli.ts prepare "$RELEASE_BUMP" "$RELEASE_BASE_SHA"',
+        );
+        expect(text).toContain(
+            'git push --atomic origin "HEAD:refs/heads/main" "refs/tags/$RELEASE_TAG"',
+        );
         expect(text).toContain('bun scripts/release-cli.ts inspect "$RELEASE_TAG"');
     });
 
@@ -501,102 +541,102 @@ pinned action commit hashes:
 name: Publish
 
 on:
-  push:
-    tags:
-      - "v*"
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: "Version increment"
-        required: true
-        default: patch
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
+    push:
+        tags:
+            - "v*"
+    workflow_dispatch:
+        inputs:
+            bump:
+                description: "Version increment"
+                required: true
+                default: patch
+                type: choice
+                options:
+                    - patch
+                    - minor
+                    - major
 
 permissions: {}
 
 concurrency:
-  group: npm-publish-${{ github.repository }}
-  cancel-in-progress: false
+    group: npm-publish-${{ github.repository }}
+    cancel-in-progress: false
 
 jobs:
-  prepare:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      action: ${{ steps.release.outputs.action }}
-      tag: ${{ steps.release.outputs.tag }}
-      version: ${{ steps.release.outputs.version }}
-    steps:
-      - name: Require main
-        env:
-          RELEASE_REF: ${{ github.ref }}
-        run: test "$RELEASE_REF" = "refs/heads/main"
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ github.sha }}
-          fetch-depth: 0
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 24
-          registry-url: "https://registry.npmjs.org"
-          package-manager-cache: false
-      - run: bun ci
-      - name: Audit dependencies
-        run: bun audit
-      - run: bun run check
-      - name: Configure release identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - id: release
-        name: Prepare version and tag
-        env:
-          RELEASE_BUMP: ${{ inputs.bump }}
-          RELEASE_BASE_SHA: ${{ github.sha }}
-        run: bun scripts/release-cli.ts prepare "$RELEASE_BUMP" "$RELEASE_BASE_SHA"
-      - name: Push release refs
-        if: steps.release.outputs.action == 'create'
-        env:
-          RELEASE_TAG: ${{ steps.release.outputs.tag }}
-        run: git push --atomic origin "HEAD:refs/heads/main" "refs/tags/$RELEASE_TAG"
+    prepare:
+        if: github.event_name == 'workflow_dispatch'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        outputs:
+            action: ${{ steps.release.outputs.action }}
+            tag: ${{ steps.release.outputs.tag }}
+            version: ${{ steps.release.outputs.version }}
+        steps:
+            - name: Require main
+              env:
+                  RELEASE_REF: ${{ github.ref }}
+              run: test "$RELEASE_REF" = "refs/heads/main"
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  ref: ${{ github.sha }}
+                  fetch-depth: 0
+            - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+              with:
+                  node-version: 24
+                  registry-url: "https://registry.npmjs.org"
+                  package-manager-cache: false
+            - run: bun ci
+            - name: Audit dependencies
+              run: bun audit
+            - run: bun run check
+            - name: Configure release identity
+              run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            - id: release
+              name: Prepare version and tag
+              env:
+                  RELEASE_BUMP: ${{ inputs.bump }}
+                  RELEASE_BASE_SHA: ${{ github.sha }}
+              run: bun scripts/release-cli.ts prepare "$RELEASE_BUMP" "$RELEASE_BASE_SHA"
+            - name: Push release refs
+              if: steps.release.outputs.action == 'create'
+              env:
+                  RELEASE_TAG: ${{ steps.release.outputs.tag }}
+              run: git push --atomic origin "HEAD:refs/heads/main" "refs/tags/$RELEASE_TAG"
 
-  publish:
-    needs: prepare
-    if: always() && (github.event_name == 'push' || needs.prepare.result == 'success')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          ref: ${{ github.event_name == 'push' && github.ref || needs.prepare.outputs.tag }}
-          fetch-depth: 0
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
-        with:
-          node-version: 24
-          registry-url: "https://registry.npmjs.org"
-          package-manager-cache: false
-      - run: bun ci
-      - name: Audit dependencies
-        run: bun audit
-      - run: bun run check
-      - id: release
-        name: Validate release tag
-        env:
-          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || needs.prepare.outputs.tag }}
-        run: bun scripts/release-cli.ts inspect "$RELEASE_TAG"
-      - name: Publish package
-        if: steps.release.outputs.published != 'true'
-        run: npm publish --provenance
+    publish:
+        needs: prepare
+        if: always() && (github.event_name == 'push' || needs.prepare.result == 'success')
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+              with:
+                  ref: ${{ github.event_name == 'push' && github.ref || needs.prepare.outputs.tag }}
+                  fetch-depth: 0
+            - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+              with:
+                  node-version: 24
+                  registry-url: "https://registry.npmjs.org"
+                  package-manager-cache: false
+            - run: bun ci
+            - name: Audit dependencies
+              run: bun audit
+            - run: bun run check
+            - id: release
+              name: Validate release tag
+              env:
+                  RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || needs.prepare.outputs.tag }}
+              run: bun scripts/release-cli.ts inspect "$RELEASE_TAG"
+            - name: Publish package
+              if: steps.release.outputs.published != 'true'
+              run: npm publish --provenance
 ```
 
 - [ ] **Step 6: Run workflow and type contract tests**
@@ -644,11 +684,13 @@ git commit -m "ci: automate npm release versions"
 ### Task 3: Remote Release Proof
 
 **Files:**
+
 - Verify: `.github/workflows/ci.yml`
 - Verify: `.github/workflows/publish.yml`
 - Verify: `package.json`
 
 **Interfaces:**
+
 - Consumes: the implementation commits on local `main`, GitHub Actions, and npm Trusted Publishing for `izatop/gelf-client/publish.yml`.
 - Produces: green CI plus a release commit, `v0.1.14`, and `gelf-client@0.1.14` when the starting version remains `0.1.13`.
 
@@ -721,13 +763,13 @@ matches `origin/main` with a clean worktree.
 
 ## Final Verification Matrix
 
-| Check | Command or evidence | Expected result |
-| --- | --- | --- |
-| Release unit and integration tests | `bun test test/src/release.test.ts` | Pass |
-| Workflow structure | `bun test test/src/publish-workflow.test.ts` | Pass |
-| Strict security | `bun audit` | No advisories |
-| Repository gate | `bun run check` | 100% coverage and both consumers pass |
-| Package contents | `bun pm pack --dry-run` | `.mjs`, `.cjs`, maps, and declarations present |
-| CI | GitHub Actions CI for pushed implementation head | Green |
-| Release refs | `git show v0.1.14` | Matching version commit and parent |
-| npm | `npm view gelf-client@0.1.14 version --json` | `"0.1.14"` |
+| Check                              | Command or evidence                              | Expected result                                |
+| ---------------------------------- | ------------------------------------------------ | ---------------------------------------------- |
+| Release unit and integration tests | `bun test test/src/release.test.ts`              | Pass                                           |
+| Workflow structure                 | `bun test test/src/publish-workflow.test.ts`     | Pass                                           |
+| Strict security                    | `bun audit`                                      | No advisories                                  |
+| Repository gate                    | `bun run check`                                  | 100% coverage and both consumers pass          |
+| Package contents                   | `bun pm pack --dry-run`                          | `.mjs`, `.cjs`, maps, and declarations present |
+| CI                                 | GitHub Actions CI for pushed implementation head | Green                                          |
+| Release refs                       | `git show v0.1.14`                               | Matching version commit and parent             |
+| npm                                | `npm view gelf-client@0.1.14 version --json`     | `"0.1.14"`                                     |

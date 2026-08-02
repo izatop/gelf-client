@@ -119,13 +119,13 @@ jobs or the full workflow without publishing a second version.
 
 Failures have these outcomes:
 
-| Failure point | Repository and npm state | Recovery |
-| --- | --- | --- |
-| Install, audit, or checks | No release commit, tag, or npm version | Fix the failure and dispatch again |
-| Version validation | No pushed refs or npm version | Correct the conflict and dispatch again |
-| Atomic push | Neither release ref changes | Dispatch from the new `main` head |
-| Publish after push | Release commit and tag exist; npm version may be absent | Rerun the workflow; it reuses the validated tag |
-| Response lost after npm accepted publish | Commit, tag, and npm version exist | Rerun; the registry check exits successfully |
+| Failure point                            | Repository and npm state                                | Recovery                                        |
+| ---------------------------------------- | ------------------------------------------------------- | ----------------------------------------------- |
+| Install, audit, or checks                | No release commit, tag, or npm version                  | Fix the failure and dispatch again              |
+| Version validation                       | No pushed refs or npm version                           | Correct the conflict and dispatch again         |
+| Atomic push                              | Neither release ref changes                             | Dispatch from the new `main` head               |
+| Publish after push                       | Release commit and tag exist; npm version may be absent | Rerun the workflow; it reuses the validated tag |
+| Response lost after npm accepted publish | Commit, tag, and npm version exist                      | Rerun; the registry check exits successfully    |
 
 ## Permissions
 
@@ -134,9 +134,9 @@ do not create or store this token as a repository secret.
 
 The workflow will grant permissions per job:
 
-| Job | Permissions | Purpose |
-| --- | --- | --- |
-| `prepare` | `contents: write` | Push the release commit and tag |
+| Job       | Permissions                         | Purpose                                                |
+| --------- | ----------------------------------- | ------------------------------------------------------ |
+| `prepare` | `contents: write`                   | Push the release commit and tag                        |
 | `publish` | `contents: read`, `id-token: write` | Check out the tag and authenticate to npm through OIDC |
 
 The prepare job cannot request an npm OIDC token. The publish job cannot write
