@@ -69,10 +69,11 @@ The atomic push protects both refs from partial release state. Git will reject
 the push if another commit reaches `main` after the event SHA. The maintainer can
 start a new release from the updated branch in that case.
 
-## Publish Job
+## Validation Job
 
-The `publish` job will consume the tag produced by `prepare` during a manual
-release. For a `v*` push, it will use `github.ref`.
+The `validate` job will consume the tag produced by `prepare` during a manual
+release. For a `v*` push, it will use `github.ref`. The job will have
+`contents: read` and no OIDC permission.
 
 The job will check out the exact tag, install Bun and Node 24, then run:
 
@@ -86,16 +87,35 @@ The direct `bun audit` call also works for an older tag that lacks the
 `security` package script. CI on `main` will continue to use
 `bun run security` as the repository-facing command.
 
-Before publication, the job will confirm that:
+Before packaging, the job will confirm that:
 
 - the ref has the form `v<semver>`;
 - the tag version equals `package.json.version`;
 - the package name remains `gelf-client`;
 - the target version does not conflict with npm state.
 
-The job will run `npm publish --provenance` when npm does not contain the target
-version. It will not run `npm pkg fix`; the tagged manifest must already contain
-the metadata that npm receives.
+When npm does not contain the target version, the validation job will create
+`.release/package.tgz` with `bun pm pack --ignore-scripts`, calculate its
+SHA-256 digest, and upload it as a one-day workflow artifact. The upload action
+will use a full commit SHA.
+
+## Publication Job
+
+The `publish` job will receive `id-token: write` and no repository-content
+permission. It will not check out the release tag, install package dependencies,
+or run repository scripts.
+
+The job will install Node 24, download the validated tarball through a pinned
+official artifact action, and compare its SHA-256 digest with the validation-job
+output. It will then run:
+
+```text
+npm publish .release/package.tgz --ignore-scripts --provenance
+```
+
+`--ignore-scripts` prevents package lifecycle code from running in the job that
+can request an npm OIDC token. The workflow will not run `npm pkg fix`; the
+tarball manifest must match the validated tag.
 
 ## Idempotency and Failure Handling
 
@@ -112,10 +132,11 @@ these checks pass:
 If those checks pass, the job will reuse the tag instead of creating another
 version. A conflicting tag will stop the workflow.
 
-The publish job will query npm before publication. If npm already contains the
-version and the local tag checks pass, the job will report the release as
-present and exit successfully. A maintainer may therefore rerun either failed
-jobs or the full workflow without publishing a second version.
+The validation job will query npm before packaging. If npm already contains the
+version and the local tag checks pass, it will report the release as present and
+skip artifact upload. The publication job will then skip. A maintainer may
+therefore rerun either failed jobs or the full workflow without publishing a
+second version.
 
 Failures have these outcomes:
 
@@ -134,13 +155,14 @@ do not create or store this token as a repository secret.
 
 The workflow will grant permissions per job:
 
-| Job       | Permissions                         | Purpose                                                |
-| --------- | ----------------------------------- | ------------------------------------------------------ |
-| `prepare` | `contents: write`                   | Push the release commit and tag                        |
-| `publish` | `contents: read`, `id-token: write` | Check out the tag and authenticate to npm through OIDC |
+| Job        | Permissions       | Purpose                                       |
+| ---------- | ----------------- | --------------------------------------------- |
+| `prepare`  | `contents: write` | Push the release commit and tag               |
+| `validate` | `contents: read`  | Check the tag and create the package artifact |
+| `publish`  | `id-token: write` | Publish the validated tarball through OIDC    |
 
-The prepare job cannot request an npm OIDC token. The publish job cannot write
-Git refs.
+The prepare and validation jobs cannot request an npm OIDC token. The publish
+job cannot read Git refs or execute code from the release checkout.
 
 Repository or organization policy can cap `GITHUB_TOKEN` permissions. If that
 policy blocks `contents: write`, the atomic push will fail with no npm publish.
@@ -155,6 +177,8 @@ Local validation will:
 - assert the trigger, input choices, concurrency group, job conditions, and
   job-level permissions;
 - exercise the version and tag validation logic in a temporary Git repository;
+- verify tarball digest checks and the absence of checkout or Bun steps from
+  the OIDC-enabled job;
 - run `bun audit`, `bun run check`, and `bun pm pack --dry-run`;
 - confirm that `package.json` has no `postversion` script.
 
@@ -170,7 +194,9 @@ with all jobs green.
   tag.
 - Bun installs dependencies, audits them, runs checks, and builds both package
   formats.
-- The publish job verifies the package version against the tag.
+- The validation job verifies the package version against the tag and produces
+  a hashed tarball artifact.
+- The OIDC-enabled job does not check out or execute release code.
 - npm Trusted Publishing uses `publish.yml` and a job-scoped OIDC token.
 - The workflow stores no npm or GitHub write token in repository secrets.
 - Parallel or repeated runs cannot create conflicting versions.
@@ -192,4 +218,6 @@ with all jobs green.
 - [GitHub workflow permissions](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax)
 - [GitHub workflow reruns](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs)
 - [GitHub concurrency](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/control-workflow-concurrency)
+- [GitHub workflow artifacts](https://docs.github.com/en/actions/tutorials/store-and-share-data)
 - [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
+- [npm publish](https://docs.npmjs.com/cli/publish/)

@@ -13,11 +13,13 @@
 - The manual input is a required `patch`, `minor`, or `major` choice; `patch` is the default.
 - Manual releases start only from `refs/heads/main` and use the event `GITHUB_SHA` as their base.
 - Bun runs dependency installation, the strict audit, tests, type checks, and both package builds.
-- `prepare` receives only `contents: write`; `publish` receives only `contents: read` and `id-token: write`.
+- `prepare` receives only `contents: write`; `validate` receives only `contents: read`; `publish` receives only `id-token: write`.
 - Release commit and annotated tag refs are pushed together with `git push --atomic`.
 - The workflow publishes through `npm publish --provenance`; it contains no long-lived npm token.
-- The direct publish audit is `bun audit`, so tag validation does not depend on a package script.
+- The direct validation audit is `bun audit`, so tag validation does not depend on a package script.
 - The tagged `package.json` is immutable during publish; remove `npm pkg fix` from the workflow.
+- The OIDC-enabled job receives a validated tarball artifact, verifies its SHA-256 digest, and runs no release checkout or package script.
+- Publish the tarball with `npm publish .release/package.tgz --ignore-scripts --provenance`.
 - Keep the `push.tags: v*` trigger.
 - Preserve 100% line, function, and statement coverage for loaded production modules.
 - Do not add a semver, release-bot, or changelog dependency.
@@ -461,7 +463,7 @@ git commit -m "test: cover automated release state"
 **Interfaces:**
 
 - Consumes: `prepareRelease`, `inspectRelease`, GitHub's event SHA/ref, job output file, and job-scoped `GITHUB_TOKEN`.
-- Produces: prepare outputs `action`, `tag`, and `version`; publish output `published`; an automatic release workflow with an exact-tag publish gate.
+- Produces: prepare outputs `action`, `tag`, and `version`; validation outputs `published`, `version`, and `package-sha256`; an automatic release workflow whose OIDC job consumes only the validated tarball.
 
 - [ ] **Step 1: Write failing workflow and CLI contract tests**
 
@@ -492,10 +494,25 @@ interface PublishWorkflow {
             if: string;
             permissions: Record<string, string>;
         };
+        validate: {
+            needs: string;
+            if: string;
+            permissions: Record<string, string>;
+            steps: Array<{
+                name?: string;
+                uses?: string;
+                run?: string;
+            }>;
+        };
         publish: {
             needs: string;
             if: string;
             permissions: Record<string, string>;
+            steps: Array<{
+                name?: string;
+                uses?: string;
+                run?: string;
+            }>;
         };
     };
 }
@@ -522,10 +539,8 @@ describe("Publish workflow", () => {
     test("separates Git and npm authority", () => {
         expect(workflow.permissions).toEqual({});
         expect(workflow.jobs.prepare.permissions).toEqual({ contents: "write" });
-        expect(workflow.jobs.publish.permissions).toEqual({
-            contents: "read",
-            "id-token": "write",
-        });
+        expect(workflow.jobs.validate.permissions).toEqual({ contents: "read" });
+        expect(workflow.jobs.publish.permissions).toEqual({ "id-token": "write" });
     });
 
     test("serializes releases and preserves tag pushes", () => {
@@ -536,23 +551,36 @@ describe("Publish workflow", () => {
         });
     });
 
-    test("routes manual preparation into the publish job", () => {
+    test("routes manual preparation through validation", () => {
         expect(workflow.jobs.prepare.if).toBe("github.event_name == 'workflow_dispatch'");
-        expect(workflow.jobs.publish.needs).toBe("prepare");
-        expect(workflow.jobs.publish.if).toBe(
+        expect(workflow.jobs.validate.needs).toBe("prepare");
+        expect(workflow.jobs.validate.if).toBe(
             "always() && (github.event_name == 'push' || needs.prepare.result == 'success')",
         );
+        expect(workflow.jobs.publish.needs).toBe("validate");
     });
 
     test("removes the push-on-version package hook", () => {
         expect(packageJson.scripts.postversion).toBeUndefined();
     });
+
+    test("keeps release code outside the OIDC job", () => {
+        const privilegedSteps = workflow.jobs.publish.steps;
+        expect(privilegedSteps.map((step) => step.uses).filter(Boolean)).toEqual([
+            "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+            "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+        ]);
+        expect(privilegedSteps.map((step) => step.run).filter(Boolean)).toEqual([
+            `printf '%s  %s\\n' "$EXPECTED_SHA256" ".release/package.tgz" | sha256sum --check --strict`,
+            "npm publish .release/package.tgz --ignore-scripts --provenance",
+        ]);
+    });
 });
 ```
 
-The YAML tests guard parsed workflow invariants only. Do not assert exact
-`run:` strings or grep the workflow source. Task 1's temporary bare-remote
-tests prove the atomic Git behavior. Add subprocess tests to
+The YAML tests guard parsed workflow invariants and the allowlist for the two
+commands that run with OIDC authority. Do not grep the workflow source. Task
+1's temporary bare-remote tests prove the atomic Git behavior. Add subprocess tests to
 `test/src/release.test.ts` for the CLI adapter: start a local HTTP server that
 returns npm-compatible `404` responses, set `NPM_CONFIG_REGISTRY` to its URL,
 run `prepare` with a temporary `GITHUB_OUTPUT` file, and assert these literal
@@ -577,9 +605,11 @@ Run:
 bun test test/src/publish-workflow.test.ts
 ```
 
-Expected: tests fail because the workflow still requires `tag`, has one job,
-and `package.json` still defines `postversion`. The CLI subprocess cases fail
-because `scripts/release-cli.ts` does not exist.
+Expected on the pre-implementation baseline: tests fail because the workflow
+requires `tag`, lacks the prepare/validate split, and `package.json` defines
+`postversion`; the CLI subprocess cases fail because `scripts/release-cli.ts`
+does not exist. During the security fix round, the new OIDC-boundary test fails
+because the two-job workflow checks out release code in `publish`.
 
 - [ ] **Step 3: Add the CLI adapter**
 
@@ -692,13 +722,16 @@ jobs:
                   RELEASE_TAG: ${{ steps.release.outputs.tag }}
               run: bun scripts/release-cli.ts push "$RELEASE_TAG"
 
-    publish:
+    validate:
         needs: prepare
         if: always() && (github.event_name == 'push' || needs.prepare.result == 'success')
         runs-on: ubuntu-latest
         permissions:
             contents: read
-            id-token: write
+        outputs:
+            published: ${{ steps.release.outputs.published }}
+            version: ${{ steps.release.outputs.version }}
+            package-sha256: ${{ steps.package.outputs.sha256 }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
@@ -719,9 +752,45 @@ jobs:
               env:
                   RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || needs.prepare.outputs.tag }}
               run: bun scripts/release-cli.ts inspect "$RELEASE_TAG"
-            - name: Publish package
+            - name: Pack validated package
               if: steps.release.outputs.published != 'true'
-              run: npm publish --provenance
+              run: bun pm pack --destination .release --filename package.tgz --ignore-scripts
+            - id: package
+              name: Record package digest
+              if: steps.release.outputs.published != 'true'
+              run: echo "sha256=$(sha256sum .release/package.tgz | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
+            - name: Upload validated package
+              if: steps.release.outputs.published != 'true'
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+              with:
+                  name: npm-package-${{ steps.release.outputs.version }}
+                  path: .release/package.tgz
+                  if-no-files-found: error
+                  retention-days: 1
+                  compression-level: 0
+
+    publish:
+        needs: validate
+        if: needs.validate.result == 'success' && needs.validate.outputs.published != 'true'
+        runs-on: ubuntu-latest
+        permissions:
+            id-token: write
+        steps:
+            - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+              with:
+                  node-version: 24
+                  registry-url: "https://registry.npmjs.org"
+                  package-manager-cache: false
+            - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+              with:
+                  name: npm-package-${{ needs.validate.outputs.version }}
+                  path: .release
+            - name: Verify package digest
+              env:
+                  EXPECTED_SHA256: ${{ needs.validate.outputs.package-sha256 }}
+              run: printf '%s  %s\n' "$EXPECTED_SHA256" ".release/package.tgz" | sha256sum --check --strict
+            - name: Publish package
+              run: npm publish .release/package.tgz --ignore-scripts --provenance
 ```
 
 - [ ] **Step 6: Run workflow and type contract tests**
@@ -817,13 +886,16 @@ version=0.1.14
 tag=v0.1.14
 ```
 
-- [ ] **Step 4: Monitor both release jobs**
+- [ ] **Step 4: Monitor all release jobs**
 
 Expected:
 
 - `prepare` passes install, audit, checks, version validation, and atomic push;
-- `publish` checks out `v0.1.14`, repeats the gates, validates the tag, and
-  completes `npm publish --provenance`.
+- `validate` checks out `v0.1.14`, repeats the gates, validates the tag, and
+  uploads the hashed package tarball without OIDC permission;
+- `publish` verifies the downloaded tarball digest and completes
+  `npm publish .release/package.tgz --ignore-scripts --provenance` without a
+  repository checkout.
 
 If the atomic push returns `403`, inspect **Settings -> Actions -> General ->
 Workflow permissions** and applicable organization rules. Granting repository
