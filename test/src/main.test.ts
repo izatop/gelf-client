@@ -136,6 +136,31 @@ test("Client preserves emergency severity", async () => {
     expect(levels).toEqual([Level.EMERGENCY, Level.EMERGENCY]);
 });
 
+test("Client level helpers send every GELF severity", async () => {
+    const client = Client.factory(dsn, { app: "test" });
+    const calls = [
+        ["emergency", Level.EMERGENCY],
+        ["alert", Level.ALERT],
+        ["critical", Level.CRITICAL],
+        ["error", Level.ERROR],
+        ["warning", Level.WARNING],
+        ["notice", Level.NOTICE],
+        ["info", Level.INFO],
+        ["debug", Level.DEBUG],
+    ] as const;
+
+    for (const [method, level] of calls) {
+        await client[method]({ message: method });
+        const payload = JSON.parse(
+            (client.transport as TestTransport).written.at(-1)!.toString("utf-8"),
+        );
+        expect(payload.level).toBe(level);
+    }
+
+    client.close();
+    expect((client.transport as TestTransport).destroyed).toBe(true);
+});
+
 test("Client uses the system hostname by default", async () => {
     const client = Client.factory(dsn);
     await client.info({ message: "host fallback" });

@@ -1,6 +1,13 @@
 import { expect, test } from "bun:test";
 import { AddressInfo, createServer } from "node:net";
 import { Client, Level } from "../../src";
+import { TCPTransport } from "../../src/Transport/TCPTransport";
+
+class TestableTCPTransport extends TCPTransport {
+    public getSocket() {
+        return this.socket;
+    }
+}
 
 const countNullDelimiters = (data: Buffer) =>
     data.reduce((count, byte) => count + Number(byte === 0), 0);
@@ -118,4 +125,40 @@ test("TCP sends a large GELF message as one unchunked frame", async () => {
             version: "1.1",
         },
     ]);
+});
+
+test("TCP forwards socket errors through the transport", async () => {
+    const server = createServer();
+    await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(0, "127.0.0.1", resolve);
+    });
+
+    const address = server.address() as AddressInfo;
+    const connected = new Promise<import("node:net").Socket>((resolve) =>
+        server.once("connection", resolve),
+    );
+    const transport = new TestableTCPTransport({
+        compress: false,
+        host: "127.0.0.1",
+        maxChunkSize: 1400,
+        minCompressSize: 1400,
+        port: address.port,
+        protocol: "tcp",
+        strictChecks: true,
+    });
+    const acceptedSocket = await connected;
+    const socketError = new Error("synthetic TCP socket error");
+    const forwardedError = new Promise<unknown>((resolve) => transport.once("error", resolve));
+
+    try {
+        transport.getSocket().emit("error", socketError);
+        expect(await forwardedError).toBe(socketError);
+    } finally {
+        transport.close();
+        acceptedSocket.destroy();
+        await new Promise<void>((resolve, reject) => {
+            server.close((error) => (error ? reject(error) : resolve()));
+        });
+    }
 });
