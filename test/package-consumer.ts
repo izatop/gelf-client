@@ -1,7 +1,21 @@
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const rootDirectory = process.cwd();
+
+const assertFile = (path: string) => access(path);
+
+const assertMissingFile = async (path: string) => {
+    try {
+        await access(path);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            return;
+        }
+        throw error;
+    }
+    throw new Error(`The packed package contains build metadata: ${path}`);
+};
 
 const run = async (command: string[], cwd: string) => {
     const child = Bun.spawn(command, {
@@ -38,6 +52,30 @@ const main = async () => {
         const packedPackageJson = JSON.parse(
             await readFile(join(installedPackageDirectory, "package.json"), "utf8"),
         );
+        await Promise.all(
+            [
+                "dist/index.mjs",
+                "dist/index.mjs.map",
+                "dist/index.cjs",
+                "dist/index.cjs.map",
+                "dist/types/index.d.ts",
+            ].map((path) => assertFile(join(installedPackageDirectory, path))),
+        );
+        await Promise.all(
+            ["dist/tsconfig.esnext.tsbuildinfo", "dist/tsconfig.cjs.tsbuildinfo"].map((path) =>
+                assertMissingFile(join(installedPackageDirectory, path)),
+            ),
+        );
+
+        const rootExport = packedPackageJson.exports?.["."];
+        if (
+            rootExport?.types !== "./dist/types/index.d.ts" ||
+            rootExport?.import !== "./dist/index.mjs" ||
+            rootExport?.require !== "./dist/index.cjs"
+        ) {
+            throw new Error("The packed package does not expose the dual entrypoints");
+        }
+
         if (packedPackageJson.dependencies?.["@types/node"] !== undefined) {
             throw new Error("The published package must not depend on @types/node at runtime");
         }
@@ -97,6 +135,24 @@ const main = async () => {
                 "",
             ].join("\n"),
         );
+        await writeFile(
+            join(consumerDirectory, "index.mjs"),
+            [
+                `import GELFClient, { Client, Level } from "${packageJson.name}";`,
+                'if (GELFClient !== Client) throw new Error("ESM default export mismatch");',
+                'if (Level.INFO !== 6) throw new Error("ESM named export mismatch");',
+                "",
+            ].join("\n"),
+        );
+        await writeFile(
+            join(consumerDirectory, "index.cjs"),
+            [
+                `const { default: GELFClient, Client, Level } = require("${packageJson.name}");`,
+                'if (GELFClient !== Client) throw new Error("CJS default export mismatch");',
+                'if (Level.INFO !== 6) throw new Error("CJS named export mismatch");',
+                "",
+            ].join("\n"),
+        );
 
         await run(
             [
@@ -107,6 +163,8 @@ const main = async () => {
             ],
             consumerDirectory,
         );
+        await run(["node", "index.mjs"], consumerDirectory);
+        await run(["node", "index.cjs"], consumerDirectory);
     } finally {
         await rm(consumerDirectory, { recursive: true, force: true });
     }
