@@ -169,7 +169,7 @@ The release steps are:
 
 1. update `package.json` and `bun.lock` to `0.1.12`;
 2. commit the documentation, examples, fixes, tests, and version;
-3. push `master`;
+3. push `main`;
 4. create and push tag `v0.1.12`;
 5. wait for the Publish workflow;
 6. confirm that npm reports `gelf-client@0.1.12`.

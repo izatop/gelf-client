@@ -48,7 +48,7 @@ On tag pushes, checkout will use `github.ref`. On a manual run, checkout will
 build `refs/tags/<tag>` from the required `tag` input. The recovery run will
 pass `v0.1.12`, so the workflow publishes the package contents already
 associated with that tag while executing the current `publish.yml` definition
-from `master`. A manual run cannot select a branch or commit SHA.
+from `main`. A manual run cannot select a branch or commit SHA.
 
 The workflow will continue to run on GitHub-hosted `ubuntu-latest` runners.
 
@@ -75,10 +75,10 @@ GitHub source used by the trusted publisher.
 
 ## Release Recovery
 
-After the workflow change reaches `master` and the npm Trusted Publisher is
+After the workflow change reaches `main` and the npm Trusted Publisher is
 configured:
 
-1. dispatch the Publish workflow from `master`;
+1. dispatch the Publish workflow from `main`;
 2. set `tag` to `v0.1.12`;
 3. wait for `bun run check` and `npm publish`;
 4. confirm that npm reports `gelf-client@0.1.12`.

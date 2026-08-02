@@ -182,7 +182,7 @@ git status --short --branch
 ```
 
 Expected: YAML parsing and whitespace checks pass. The branch is ahead of
-`origin/master` only by the intentional commits and the worktree is clean.
+`origin/main` only by the intentional commits and the worktree is clean.
 
 ### Task 3: Configure npm and Publish the Existing Tag
 
@@ -196,15 +196,15 @@ Expected: YAML parsing and whitespace checks pass. The branch is ahead of
 - Consumes: npm publisher identity `izatop/gelf-client/publish.yml` and Git tag `v0.1.12`.
 - Produces: npm package `gelf-client@0.1.12` with provenance.
 
-- [ ] **Step 1: Push the workflow commits to `master`**
+- [ ] **Step 1: Push the workflow commits to `main`**
 
 Run:
 
 ```bash
-git push origin master
+git push origin main
 ```
 
-Expected: `origin/master` contains the specification, plan, and OIDC workflow.
+Expected: `origin/main` contains the specification, plan, and OIDC workflow.
 
 - [ ] **Step 2: Configure the npm Trusted Publisher**
 
@@ -223,7 +223,7 @@ Expected: npm lists GitHub Actions as the package's single trusted publisher.
 
 - [ ] **Step 3: Dispatch the recovery publication**
 
-Run the `Publish` workflow from the `master` branch with:
+Run the `Publish` workflow from the `main` branch with:
 
 ```text
 tag: v0.1.12
@@ -233,7 +233,7 @@ The equivalent GitHub API request is:
 
 ```text
 POST /repos/izatop/gelf-client/actions/workflows/publish.yml/dispatches
-{"ref":"master","inputs":{"tag":"v0.1.12"}}
+{"ref":"main","inputs":{"tag":"v0.1.12"}}
 ```
 
 Expected: checkout resolves `v0.1.12`, Bun checks pass, and `npm publish`
@@ -260,7 +260,7 @@ Mark all completed steps in this plan, then run:
 ```bash
 git add docs/superpowers/plans/2026-07-30-npm-trusted-publishing.md
 git commit -m "docs: record npm trusted publication"
-git push origin master
+git push origin main
 ```
 
-Expected: `master` records the successful release and the worktree is clean.
+Expected: `main` records the successful release and the worktree is clean.

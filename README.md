@@ -62,7 +62,7 @@ Graylog receives a GELF object with this shape:
 ```
 
 See the complete
-[UDP example](https://github.com/izatop/gelf-client/blob/master/examples/udp.ts).
+[UDP example](https://github.com/izatop/gelf-client/blob/main/examples/udp.ts).
 
 ## Transports
 
@@ -78,7 +78,7 @@ const tcpClient = GELFClient.factory("tcp://localhost:12201");
 UDP supports GELF chunking and optional zlib compression. TCP writes each
 uncompressed, non-chunked JSON payload to a persistent socket and terminates it
 with a null byte. See the complete
-[TCP example](https://github.com/izatop/gelf-client/blob/master/examples/tcp.ts).
+[TCP example](https://github.com/izatop/gelf-client/blob/main/examples/tcp.ts).
 Graylog documents the wire rules in its
 [GELF format specification](https://go2docs.graylog.org/current/getting_in_log_data/gelf_format.html).
 
@@ -111,7 +111,7 @@ above uses `user_id: 43`. Clones share the original transport, so close the
 factory client when the application shuts down.
 
 See the complete
-[context example](https://github.com/izatop/gelf-client/blob/master/examples/context.ts).
+[context example](https://github.com/izatop/gelf-client/blob/main/examples/context.ts).
 
 ## Message fields
 

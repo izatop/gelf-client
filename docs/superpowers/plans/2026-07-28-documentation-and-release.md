@@ -18,7 +18,7 @@ Actions, npm.
 
 ## Global Constraints
 
-- Work directly on `master`.
+- Work directly on `main`.
 - Keep the public GELF wire names and method signatures unchanged.
 - Keep UDP framing, compression, chunking, and DSN syntax unchanged.
 - Make TCP messages uncompressed, non-chunked, and null-delimited.
@@ -568,12 +568,12 @@ git add package.json docs/superpowers/plans/2026-07-28-documentation-and-release
 git commit -m "release: prepare version 0.1.12"
 ```
 
-- [ ] **Step 4: Push master and verify CI**
+- [ ] **Step 4: Push main and verify CI**
 
 Run:
 
 ```bash
-git push origin master
+git push origin main
 ```
 
 Wait for the CI workflow on the pushed commit and require conclusion
@@ -603,8 +603,8 @@ Expected: npm reports `0.1.12`. Mark Steps 3 through 6 complete, then run:
 ```bash
 git add docs/superpowers/plans/2026-07-28-documentation-and-release.md
 git commit -m "docs: record version 0.1.12 publication"
-git push origin master
+git push origin main
 git status --short --branch
 ```
 
-The final status must show a clean `master` matching `origin/master`.
+The final status must show a clean `main` matching `origin/main`.
