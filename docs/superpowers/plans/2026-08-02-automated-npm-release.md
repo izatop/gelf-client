@@ -4,7 +4,7 @@
 
 **Goal:** Replace the manual existing-tag input with a safe `patch`/`minor`/`major` release that creates the version commit and tag, then publishes that exact tag through npm Trusted Publishing.
 
-**Architecture:** A tested Bun module will own version, Git-tag, retry, and npm-state validation. A thin CLI will expose that module to two GitHub Actions jobs: `prepare` creates and atomically pushes release refs, while `publish` checks the tag and publishes through OIDC. The workflow will keep tag-push support and make reruns idempotent.
+**Architecture:** A tested Bun module will own version, Git-tag, retry, and npm-state validation. The workflow has three jobs: `prepare` creates the release state and performs a credential-scoped atomic push, `validate` checks the exact tag and produces a digest-checked attempt-specific artifact, and `publish` consumes only that tarball through OIDC. The workflow will keep tag-push support and make reruns idempotent.
 
 **Tech Stack:** Bun 1.3.14, TypeScript 7.0.2, `bun:test`, Git, GitHub Actions, Node.js 24, npm Trusted Publishing.
 
@@ -15,6 +15,9 @@
 - Bun runs dependency installation, the strict audit, tests, type checks, and both package builds.
 - `prepare` receives only `contents: write`; `validate` receives only `contents: read`; `publish` receives only `id-token: write`.
 - Release commit and annotated tag refs are pushed together with `git push --atomic`.
+- Prepare and validation checkouts use `persist-credentials: false`; only the final atomic-push step receives `github.token`.
+- The token is provided through a host-restricted Git credential helper after inherited helpers are reset, Git hooks are disabled for the push, and the remote is the canonical `github.repository` URL.
+- Validation names artifacts with `github.run_attempt` and passes the exact name to `publish` through a job output.
 - The workflow publishes through `npm publish --provenance`; it contains no long-lived npm token.
 - The direct validation audit is `bun audit`, so tag validation does not depend on a package script.
 - The tagged `package.json` is immutable during publish; remove `npm pkg fix` from the workflow.
@@ -33,7 +36,7 @@
 - Modify `test/tsconfig.json`: type-check `scripts/**` with Bun and Node ambient types.
 - Modify `bunfig.toml`: exclude only the two-line CLI process adapter from coverage accounting.
 - Modify `package.json`: remove the push-on-version `postversion` hook.
-- Modify `.github/workflows/publish.yml`: add the prepare/publish job split and automatic bump input.
+- Modify `.github/workflows/publish.yml`: add the three-job prepare/validate/publish pipeline and automatic bump input.
 
 ---
 
@@ -385,6 +388,10 @@ It returns `true` for exit code `0`, returns `false` only when stderr contains
 assertBump(options.bump);
 assert((await git("rev-parse", "HEAD")) === options.baseSha, "Release base does not match HEAD");
 await checked(["bun", "pm", "version", options.bump, "--no-git-tag-version"]);
+assert(
+    (await git("rev-parse", "HEAD")) === options.baseSha,
+    "Release base does not match HEAD after versioning",
+);
 const { name, version } = await readReleasePackage(options.cwd);
 const tag = `v${version}`;
 await assertOnlyPackageJsonChanged(options.cwd);
@@ -399,6 +406,9 @@ await checked(["git", "add", "package.json"]);
 await checked(["git", "commit", "-m", `release: prepare version ${version}`]);
 await checked(["git", "tag", "-a", tag, "-m", tag]);
 ```
+
+Before returning, resolve `${tag}^{commit}^` and require it to equal
+`options.baseSha`.
 
 For an existing tag, read `${tag}:package.json`, resolve `${tag}^{commit}^`,
 and require both the expected version and `options.baseSha`. Return
@@ -421,13 +431,15 @@ Extend `test/src/release.test.ts` until every executable line and exported
 function in `scripts/release.ts` runs. Add these cases with the exact expected
 messages:
 
-| Setup                                               | Expected message                                   |
-| --------------------------------------------------- | -------------------------------------------------- |
-| Package name is `other-package`                     | `Release package must be gelf-client`              |
-| Package version is `1.2.3-beta.1`                   | `Release package version must be stable semver`    |
-| Existing retry tag contains a different version     | `v1.2.4 does not contain package version 1.2.4`    |
-| Checkout HEAD differs from the supplied publish tag | `Checked-out commit does not match v1.2.4`         |
-| A child process exits nonzero in a checked command  | Include the command and stderr in the thrown error |
+| Setup                                               | Expected message                                           |
+| --------------------------------------------------- | ---------------------------------------------------------- |
+| Package name is `other-package`                     | `Release package must be gelf-client`                      |
+| Package version is `1.2.3-beta.1`                   | `Release package version must be stable semver`            |
+| Existing retry tag contains a different version     | `v1.2.4 does not contain package version 1.2.4`            |
+| Checkout HEAD differs from the supplied publish tag | `Checked-out commit does not match v1.2.4`                 |
+| Version lifecycle commits another tracked file      | `Release base does not match HEAD after versioning`        |
+| A commit hook moves the newly created release tag   | `v1.2.4 is not a release commit based on the workflow SHA` |
+| A child process exits nonzero in a checked command  | Include the command and stderr in the thrown error         |
 
 - [ ] **Step 6: Run focused verification**
 
@@ -462,8 +474,8 @@ git commit -m "test: cover automated release state"
 
 **Interfaces:**
 
-- Consumes: `prepareRelease`, `inspectRelease`, GitHub's event SHA/ref, job output file, and job-scoped `GITHUB_TOKEN`.
-- Produces: prepare outputs `action`, `tag`, and `version`; validation outputs `published`, `version`, and `package-sha256`; an automatic release workflow whose OIDC job consumes only the validated tarball.
+- Consumes: `prepareRelease`, `inspectRelease`, GitHub's event SHA/ref, job output file, and a step-scoped `github.token` used only by the final atomic push.
+- Produces: prepare outputs `action`, `tag`, and `version`; validation outputs `published`, `version`, `package-sha256`, and `artifact-name`; an automatic release workflow whose OIDC job consumes only the validated tarball.
 
 - [ ] **Step 1: Write failing workflow and CLI contract tests**
 
@@ -579,8 +591,12 @@ describe("Publish workflow", () => {
 ```
 
 The YAML tests guard parsed workflow invariants and the allowlist for the two
-commands that run with OIDC authority. Do not grep the workflow source. Task
-1's temporary bare-remote tests prove the atomic Git behavior. Add subprocess tests to
+commands that run with OIDC authority. They also assert both checkout refs and
+`persist-credentials` flags, validation outputs and step conditions, the exact
+pack command, attempt-specific artifact output/upload/download wiring, the
+publish idempotency condition, and the step-scoped token/hook/canonical-remote
+boundary. Do not grep the workflow source. Task 1's temporary bare-remote tests
+prove the atomic Git behavior. Add subprocess tests to
 `test/src/release.test.ts` for the CLI adapter: start a local HTTP server that
 returns npm-compatible `404` responses, set `NPM_CONFIG_REGISTRY` to its URL,
 run `prepare` with a temporary `GITHUB_OUTPUT` file, and assert these literal
@@ -609,7 +625,7 @@ Expected on the pre-implementation baseline: tests fail because the workflow
 requires `tag`, lacks the prepare/validate split, and `package.json` defines
 `postversion`; the CLI subprocess cases fail because `scripts/release-cli.ts`
 does not exist. During the security fix round, the new OIDC-boundary test fails
-because the two-job workflow checks out release code in `publish`.
+because the former two-job workflow checked out release code in `publish`.
 
 - [ ] **Step 3: Add the CLI adapter**
 
@@ -696,6 +712,7 @@ jobs:
               with:
                   ref: ${{ github.sha }}
                   fetch-depth: 0
+                  persist-credentials: false
             - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
             - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
               with:
@@ -720,7 +737,23 @@ jobs:
               if: steps.release.outputs.action == 'create'
               env:
                   RELEASE_TAG: ${{ steps.release.outputs.tag }}
-              run: bun scripts/release-cli.ts push "$RELEASE_TAG"
+                  RELEASE_REPOSITORY: ${{ github.repository }}
+                  GH_TOKEN: ${{ github.token }}
+                  GIT_CONFIG_GLOBAL: /dev/null
+                  GIT_CONFIG_SYSTEM: /dev/null
+                  GIT_CONFIG_COUNT: "4"
+                  GIT_CONFIG_KEY_0: core.hooksPath
+                  GIT_CONFIG_VALUE_0: /dev/null
+                  GIT_CONFIG_KEY_1: credential.username
+                  GIT_CONFIG_VALUE_1: x-access-token
+                  GIT_CONFIG_KEY_2: credential.helper
+                  GIT_CONFIG_VALUE_2: ""
+                  GIT_CONFIG_KEY_3: credential.helper
+                  GIT_CONFIG_VALUE_3: '!f() { if test "$1" = get && grep -qx "host=github.com"; then printf ''%s\n'' "password=$GH_TOKEN"; fi; }; f'
+                  GIT_TERMINAL_PROMPT: "0"
+              run: >-
+                  git push --atomic "https://github.com/${RELEASE_REPOSITORY}.git"
+                  "HEAD:refs/heads/main" "refs/tags/${RELEASE_TAG}"
 
     validate:
         needs: prepare
@@ -732,11 +765,13 @@ jobs:
             published: ${{ steps.release.outputs.published }}
             version: ${{ steps.release.outputs.version }}
             package-sha256: ${{ steps.package.outputs.sha256 }}
+            artifact-name: ${{ steps.package.outputs.artifact-name }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
               with:
                   ref: ${{ github.event_name == 'push' && github.ref || needs.prepare.outputs.tag }}
                   fetch-depth: 0
+                  persist-credentials: false
             - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
             - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
               with:
@@ -754,16 +789,20 @@ jobs:
               run: bun scripts/release-cli.ts inspect "$RELEASE_TAG"
             - name: Pack validated package
               if: steps.release.outputs.published != 'true'
-              run: bun pm pack --destination .release --filename package.tgz --ignore-scripts
+              run: mkdir -p .release && bun pm pack --filename .release/package.tgz --ignore-scripts
             - id: package
               name: Record package digest
               if: steps.release.outputs.published != 'true'
-              run: echo "sha256=$(sha256sum .release/package.tgz | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
+              env:
+                  ARTIFACT_NAME: npm-package-${{ steps.release.outputs.version }}-${{ github.run_attempt }}
+              run: |
+                  echo "artifact-name=$ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
+                  echo "sha256=$(sha256sum .release/package.tgz | cut -d ' ' -f1)" >> "$GITHUB_OUTPUT"
             - name: Upload validated package
               if: steps.release.outputs.published != 'true'
               uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
               with:
-                  name: npm-package-${{ steps.release.outputs.version }}
+                  name: ${{ steps.package.outputs.artifact-name }}
                   path: .release/package.tgz
                   if-no-files-found: error
                   retention-days: 1
@@ -783,7 +822,7 @@ jobs:
                   package-manager-cache: false
             - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
               with:
-                  name: npm-package-${{ needs.validate.outputs.version }}
+                  name: ${{ needs.validate.outputs.artifact-name }}
                   path: .release
             - name: Verify package digest
               env:
@@ -813,13 +852,22 @@ Run:
 ```bash
 bun audit
 bun run check
+release_smoke_dir="$(mktemp -d)"
+git archive --format=tar HEAD | tar -xf - -C "$release_smoke_dir"
+(
+    cd "$release_smoke_dir"
+    mkdir -p .release && bun pm pack --filename .release/package.tgz --ignore-scripts
+)
+test -f "$release_smoke_dir/.release/package.tgz"
+rm -rf "$release_smoke_dir"
 bun pm pack --dry-run
 git diff --check
 ```
 
 Expected: Bun reports no advisories; 100% coverage and all package consumers
-pass; the dry-run lists both `.mjs` and `.cjs`; Git reports no whitespace
-errors.
+pass; the exact script-disabled pack command creates the requested tarball in a
+temporary tree; the dry-run lists both `.mjs` and `.cjs`; Git reports no
+whitespace errors.
 
 - [ ] **Step 8: Commit the automatic workflow**
 
@@ -927,6 +975,7 @@ matches `origin/main` with a clean worktree.
 | Workflow structure                 | `bun test test/src/publish-workflow.test.ts`     | Pass                                           |
 | Strict security                    | `bun audit`                                      | No advisories                                  |
 | Repository gate                    | `bun run check`                                  | 100% coverage and both consumers pass          |
+| Validation pack command            | Temporary-tree exact pack smoke                  | `.release/package.tgz` exists                  |
 | Package contents                   | `bun pm pack --dry-run`                          | `.mjs`, `.cjs`, maps, and declarations present |
 | CI                                 | GitHub Actions CI for pushed implementation head | Green                                          |
 | Release refs                       | `git show v0.1.14`                               | Matching version commit and parent             |

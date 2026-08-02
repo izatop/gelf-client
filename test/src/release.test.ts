@@ -231,6 +231,34 @@ describe("prepareRelease", () => {
         expect(await command(repository.cwd, "git", "tag", "--list", "v1.2.4")).toBe("");
     });
 
+    test("rejects a version lifecycle that moves HEAD before the release commit", async () => {
+        const repository = await createRepository({
+            versionScript:
+                `printf 'committed by lifecycle\\n' > README.md && ` +
+                `git add README.md && git commit -m 'test: lifecycle commit' -- README.md`,
+        });
+
+        await expect(
+            prepareRelease({ ...repository, bump: "patch", lookupVersion: missing }),
+        ).rejects.toThrow("Release base does not match HEAD after versioning");
+        expect(await command(repository.cwd, "git", "status", "--short")).toBe("M package.json");
+        expect(await command(repository.cwd, "git", "tag", "--list", "v1.2.4")).toBe("");
+    });
+
+    test("verifies a newly created tag still has the workflow base as its parent", async () => {
+        const repository = await createRepository();
+        const hook = join(repository.cwd, ".git", "hooks", "post-commit");
+        await writeFile(
+            hook,
+            `#!/bin/sh\nmv "$0" "$0.done"\ngit commit --allow-empty -m 'test: move release tag'\n`,
+        );
+        await chmod(hook, 0o755);
+
+        await expect(
+            prepareRelease({ ...repository, bump: "patch", lookupVersion: missing }),
+        ).rejects.toThrow("v1.2.4 is not a release commit based on the workflow SHA");
+    });
+
     test("rejects an npm version without a matching tag", async () => {
         const repository = await createRepository();
         await expect(

@@ -147,6 +147,10 @@ export const prepareRelease = async ({
         "Release base does not match HEAD",
     );
     await checked(runner, ["bun", "pm", "version", bump, "--no-git-tag-version"], cwd);
+    assert(
+        (await checked(runner, ["git", "rev-parse", "HEAD"], cwd)) === baseSha,
+        "Release base does not match HEAD after versioning",
+    );
     const releasePackage = await readReleasePackageFromDirectory(cwd);
     const tag = `v${releasePackage.version}`;
     await assertOnlyPackageJsonChanged(runner, cwd);
@@ -164,6 +168,11 @@ export const prepareRelease = async ({
             cwd,
         );
         await checked(runner, ["git", "tag", "-a", tag, "-m", tag], cwd);
+        const releaseParent = await optionalGitCommit(runner, cwd, `${tag}^{commit}^`);
+        assert(
+            releaseParent === baseSha,
+            `${tag} is not a release commit based on the workflow SHA`,
+        );
         return { action: "create", ...releasePackage, tag };
     }
 

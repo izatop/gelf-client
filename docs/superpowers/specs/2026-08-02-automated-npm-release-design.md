@@ -48,18 +48,28 @@ when a maintainer reruns the workflow.
 
 The `prepare` job will run only for `workflow_dispatch`. It will:
 
-1. check out the event SHA with full tag history;
+1. check out the event SHA with full tag history and without persisted credentials;
 2. install the Bun version declared by `packageManager` and run `bun ci`;
 3. run `bun audit` and `bun run check`;
 4. call `bun pm version <bump> --no-git-tag-version`;
-5. read the resulting version from `package.json` and derive tag `v<version>`;
-6. verify the changed-file set;
-7. check Git tags and the npm registry for the target version;
-8. create `release: prepare version <version>` and an annotated tag;
-9. push `main` and the tag with one `git push --atomic` command.
+5. reassert that `HEAD` still equals the event SHA;
+6. read the resulting version from `package.json` and derive tag `v<version>`;
+7. verify the changed-file set;
+8. check Git tags and the npm registry for the target version;
+9. create `release: prepare version <version>` and an annotated tag, then verify
+   that its commit parent is the event SHA;
+10. push `main` and the tag with one `git push --atomic` command.
 
 The repository will remove `postversion`. The workflow will own each Git
 operation and name both pushed refs in the command.
+
+The checkout will not retain the write credential while dependencies or
+repository scripts execute. Only the final atomic-push step will receive the
+short-lived `github.token`. That step will disable Git hooks, use Git's
+credential protocol so the token is absent from process arguments and errors,
+reset inherited credential helpers, refuse token requests for hosts other than
+`github.com`, and push directly to
+`https://github.com/<github.repository>.git`.
 
 The current `bun.lock` workspace entry does not store the root package version.
 The version command should therefore change only `package.json`. The prepare job
@@ -75,7 +85,8 @@ The `validate` job will consume the tag produced by `prepare` during a manual
 release. For a `v*` push, it will use `github.ref`. The job will have
 `contents: read` and no OIDC permission.
 
-The job will check out the exact tag, install Bun and Node 24, then run:
+The job will check out the exact tag without persisted credentials, install Bun
+and Node 24, then run:
 
 ```text
 bun ci
@@ -94,10 +105,12 @@ Before packaging, the job will confirm that:
 - the package name remains `gelf-client`;
 - the target version does not conflict with npm state.
 
-When npm does not contain the target version, the validation job will create
-`.release/package.tgz` with `bun pm pack --ignore-scripts`, calculate its
-SHA-256 digest, and upload it as a one-day workflow artifact. The upload action
-will use a full commit SHA.
+When npm does not contain the target version, the validation job will run
+`mkdir -p .release && bun pm pack --filename .release/package.tgz --ignore-scripts`,
+calculate its SHA-256 digest, and upload it as a one-day workflow artifact. The
+artifact name will be `npm-package-<version>-<github.run_attempt>` and will flow
+to `publish` through the `validate` job's `artifact-name` output. The upload
+action will use a full commit SHA.
 
 ## Publication Job
 
@@ -138,6 +151,11 @@ skip artifact upload. The publication job will then skip. A maintainer may
 therefore rerun either failed jobs or the full workflow without publishing a
 second version.
 
+A full workflow rerun increments `github.run_attempt`, so validation uploads a
+new immutable artifact instead of colliding with the earlier attempt. A rerun
+of only the failed `publish` job retains the original successful `validate`
+outputs and downloads the original attempt's artifact.
+
 Failures have these outcomes:
 
 | Failure point                            | Repository and npm state                                | Recovery                                        |
@@ -164,6 +182,10 @@ The workflow will grant permissions per job:
 The prepare and validation jobs cannot request an npm OIDC token. The publish
 job cannot read Git refs or execute code from the release checkout.
 
+Both checkouts set `persist-credentials: false`. The prepare job's write token
+exists only in the final hook-disabled atomic-push step; validation never gets a
+write credential.
+
 Repository or organization policy can cap `GITHUB_TOKEN` permissions. If that
 policy blocks `contents: write`, the atomic push will fail with no npm publish.
 The maintainer can then inspect **Settings -> Actions -> General -> Workflow
@@ -174,12 +196,16 @@ permissions** or the applicable organization policy. No token secret is needed.
 Local validation will:
 
 - parse `publish.yml` as YAML;
-- assert the trigger, input choices, concurrency group, job conditions, and
-  job-level permissions;
+- assert the trigger, input choices, concurrency group, job conditions,
+  job-level permissions, checkout refs, and credential persistence flags;
+- assert the exact pack command, attempt-specific artifact output/upload/download
+  wiring, validation outputs, and publish idempotency condition;
 - exercise the version and tag validation logic in a temporary Git repository;
+- reject a version lifecycle that commits another tracked file and moves HEAD;
 - verify tarball digest checks and the absence of checkout or Bun steps from
   the OIDC-enabled job;
-- run `bun audit`, `bun run check`, and `bun pm pack --dry-run`;
+- smoke-test the exact script-disabled pack command in a temporary directory and
+  run `bun audit`, `bun run check`, and `bun pm pack --dry-run`;
 - confirm that `package.json` has no `postversion` script.
 
 Remote validation will dispatch a `patch` release from `main`. The expected
