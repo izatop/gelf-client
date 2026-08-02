@@ -45,6 +45,7 @@
         "build:watch": "tsc -w",
         "test": "bun test",
         "test:watch": "bun test --watch",
+        "security": "bun audit",
         "test:typecheck": "tsc -p test/tsconfig.json",
         "examples:typecheck": "tsc -p examples/tsconfig.json",
         "test:package": "bun test/package-consumer.ts",
